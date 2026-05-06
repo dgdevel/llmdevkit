@@ -1,0 +1,201 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"os/exec"
+	"strings"
+	"syscall"
+	"time"
+
+	"llmdevkit/internal/cfg"
+
+	"github.com/mark3labs/mcp-go/mcp"
+)
+
+func getCommands() (map[string]string, []string, error) {
+	config := cfg.MergedRead(rootDir)
+	section, ok := config["commands"]
+	if !ok {
+		return nil, nil, nil
+	}
+	listRaw, ok := section["list"]
+	if !ok || listRaw == "" {
+		return nil, nil, nil
+	}
+	names := splitCSV(listRaw)
+	return section, names, nil
+}
+
+func splitCSV(s string) []string {
+	var result []string
+	for _, v := range strings.Split(s, ",") {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
+func sanitizeArg(arg string) (string, error) {
+	if strings.ContainsRune(arg, 0) {
+		return "", fmt.Errorf("argument contains null byte")
+	}
+	return arg, nil
+}
+
+func availableCommandsHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	_, names, err := getCommands()
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if len(names) == 0 {
+		return mcp.NewToolResultText(""), nil
+	}
+	section, _, _ := getCommands()
+	var buf strings.Builder
+	for i, name := range names {
+		if i > 0 {
+			buf.WriteString("\n")
+		}
+		buf.WriteString("Command: ")
+		buf.WriteString(name)
+		buf.WriteString("\n")
+		descKey := name + "_description"
+		argsKey := name + "_arguments"
+		if v, ok := section[argsKey]; ok && v != "" {
+			args := splitCSV(v)
+			for _, a := range args {
+				buf.WriteString("Arguments: ")
+				buf.WriteString(a)
+				buf.WriteString("\n")
+			}
+		} else {
+			buf.WriteString("Arguments: no arguments are taken, invoke without arguments\n")
+		}
+		if v, ok := section[descKey]; ok && v != "" {
+			buf.WriteString("Description: ")
+			buf.WriteString(v)
+			buf.WriteString("\n")
+		}
+		cmdlineKey := name + "_cmdline"
+		if v, ok := section[cmdlineKey]; ok && v != "" {
+			buf.WriteString("Example: ")
+			buf.WriteString(v)
+			argsKey := name + "_arguments"
+			if a, ok := section[argsKey]; ok && a != "" {
+				for _, arg := range splitCSV(a) {
+					buf.WriteString(" <")
+					buf.WriteString(strings.TrimSpace(arg))
+					buf.WriteString(">")
+				}
+			}
+			buf.WriteString("\n")
+		}
+	}
+	return mcp.NewToolResultText(buf.String()), nil
+}
+
+func runCommandHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	var args []string
+	if raw, ok := req.Params.Arguments.(map[string]interface{}); ok {
+		if a, ok := raw["arguments"]; ok {
+			if arr, ok := a.([]interface{}); ok {
+				for _, v := range arr {
+					if s, ok := v.(string); ok {
+						args = append(args, s)
+					}
+				}
+			}
+		}
+	}
+	timeout, err := req.RequireInt("timeout")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	section, names, cfgErr := getCommands()
+	if cfgErr != nil {
+		return mcp.NewToolResultError(cfgErr.Error()), nil
+	}
+
+	found := false
+	for _, n := range names {
+		if n == name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return mcp.NewToolResultError(fmt.Sprintf("unknown command: %s", name)), nil
+	}
+
+	cmdlineKey := name + "_cmdline"
+	cmdline, ok := section[cmdlineKey]
+	if !ok || cmdline == "" {
+		return mcp.NewToolResultError(fmt.Sprintf("command %q has no cmdline configured", name)), nil
+	}
+
+	argsKey := name + "_arguments"
+	if expected, ok := section[argsKey]; ok && expected != "" {
+		expectedArgs := splitCSV(expected)
+		if len(args) != len(expectedArgs) {
+			return mcp.NewToolResultError(fmt.Sprintf("command %q expects %d argument(s) (%s), got %d", name, len(expectedArgs), strings.Join(expectedArgs, ", "), len(args))), nil
+		}
+	} else {
+		if len(args) > 0 {
+			return mcp.NewToolResultError(fmt.Sprintf("command %q takes no arguments, got %d", name, len(args))), nil
+		}
+	}
+
+	sanitized := make([]string, len(args))
+	for i, a := range args {
+		sanitized[i], err = sanitizeArg(a)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("invalid argument %d: %v", i+1, err)), nil
+		}
+	}
+
+	parts := strings.Fields(cmdline)
+	cmdParts := append(parts, sanitized...)
+
+	cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+
+	if err := cmd.Start(); err != nil {
+		return mcp.NewToolResultError(maskPath(fmt.Sprintf("failed to start command: %v", err))), nil
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	timedOut := false
+	select {
+	case <-done:
+	case <-time.After(time.Duration(timeout) * time.Second):
+		timedOut = true
+		cmd.Process.Signal(syscall.SIGTERM)
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			cmd.Process.Signal(syscall.SIGKILL)
+			<-done
+		}
+	}
+
+	out := output.String()
+	if timedOut {
+		out = "Command timed out. Partial output.\n" + out
+	}
+	return mcp.NewToolResultText(out), nil
+}
