@@ -7,6 +7,7 @@ require (
 	github.com/PuerkitoBio/goquery v1.9.2
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-shiori/go-readability v0.0.0-20251205110129-5db1dc9836f0
+	github.com/ironpark/go-acp v0.0.0-00010101000000-000000000000
 	github.com/mark3labs/mcp-go v0.48.0
 	github.com/philippgille/chromem-go v0.7.0
 	github.com/tree-sitter/go-tree-sitter v0.25.0
@@ -35,3 +36,5 @@ require (
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 )
+
+replace github.com/ironpark/go-acp => github.com/ironpark/acp-go v0.0.0-20260425063135-d173473c2ae1

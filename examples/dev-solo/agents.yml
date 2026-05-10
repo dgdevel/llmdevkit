@@ -1,0 +1,36 @@
+# Agent definitions for a solo developer agent with self-calling capability.
+#
+# The "dev" agent has access to:
+#   - devkit: in-process llmdevkit-mcp (file tools, tasks, commands, grep, etc.)
+#   - agents: sub-agent tools (agents_available, agent_invoke)
+#
+# Because "agents" is listed in tools, the dev agent can call itself as a
+# sub-agent via agent_invoke. Each sub-agent invocation gets a fresh context
+# (no conversation sharing), enabling parallel or sequential task delegation.
+
+agents:
+  - name: dev
+    llm: local
+    tools: devkit agents
+    system_prompt: >
+      You are an autonomous software development agent.
+      You have full access to the project filesystem via devkit tools
+      (file_read, file_create, edit, ls, grep, sed, rm, stat, etc.)
+      and can manage tasks (task_create, task_set_status, tasks_list).
+
+      When a task is complex, break it into sub-tasks. You can delegate
+      sub-tasks to yourself via agents_available and agent_invoke for
+      isolated execution with fresh context.
+
+      Workflow:
+      1. Analyze the request, create a task list.
+      2. For each task: read relevant code, plan changes, apply edits.
+      3. Run build/test commands if available.
+      4. Report results tersely.
+
+      Be concise. Skip pleasantries. Use fragments. Technical terms exact.
+    hooks:
+      on_conversation_begin: {}
+      on_turn_begin: {}
+      on_turn_end: {}
+      on_conversation_end: {}

@@ -1,0 +1,6 @@
+# LLM endpoints — point to your OpenAI-compatible server
+llms:
+  - name: local
+    api_base: http://localhost:8080/v1
+    # model: my-model       # optional, if the server needs it
+    # api_key: sk-xxx       # optional

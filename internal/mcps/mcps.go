@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"llmdevkit/internal/cfg"
 
@@ -20,9 +21,12 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	URL     string                `yaml:"url"`
+	URL     string                `yaml:"url,omitempty"`
+	SSE     string                `yaml:"sse,omitempty"`
+	Stdio   string                `yaml:"stdio,omitempty"`
 	Headers map[string]string     `yaml:"headers,omitempty"`
-	Tools   map[string]ToolConfig `yaml:"tools"`
+	Prefix  string                `yaml:"prefix,omitempty"`
+	Tools   map[string]ToolConfig `yaml:"tools,omitempty"`
 }
 
 type ToolConfig struct {
@@ -102,17 +106,48 @@ func RegisterProxiedTools(ctx context.Context, srv *server.MCPServer, cfg *Confi
 }
 
 func registerUpstream(ctx context.Context, srv *server.MCPServer, name string, scfg ServerConfig) ([]string, error) {
-	var opts []transport.StreamableHTTPCOption
-	if len(scfg.Headers) > 0 {
-		opts = append(opts, transport.WithHTTPHeaders(scfg.Headers))
+	var c *client.Client
+	var err error
+
+	switch {
+	case scfg.URL != "":
+		var opts []transport.StreamableHTTPCOption
+		if len(scfg.Headers) > 0 {
+			opts = append(opts, transport.WithHTTPHeaders(scfg.Headers))
+		}
+		c, err = client.NewStreamableHttpClient(scfg.URL, opts...)
+		if err != nil {
+			return nil, fmt.Errorf("connect upstream %s (http): %w", name, err)
+		}
+		if err := c.Start(ctx); err != nil {
+			return nil, fmt.Errorf("start upstream %s (http): %w", name, err)
+		}
+
+	case scfg.SSE != "":
+		var opts []transport.ClientOption
+		if len(scfg.Headers) > 0 {
+			opts = append(opts, transport.WithHeaders(scfg.Headers))
+		}
+		c, err = client.NewSSEMCPClient(scfg.SSE, opts...)
+		if err != nil {
+			return nil, fmt.Errorf("connect upstream %s (sse): %w", name, err)
+		}
+		if err := c.Start(ctx); err != nil {
+			return nil, fmt.Errorf("start upstream %s (sse): %w", name, err)
+		}
+
+	case scfg.Stdio != "":
+		parts := parseStdioCommand(scfg.Stdio)
+		env := stdioEnvFromHeaders(scfg.Headers)
+		c, err = client.NewStdioMCPClient(parts[0], env, parts[1:]...)
+		if err != nil {
+			return nil, fmt.Errorf("connect upstream %s (stdio): %w", name, err)
+		}
+
+	default:
+		return nil, fmt.Errorf("upstream %s: no transport configured (url, sse, or stdio required)", name)
 	}
-	c, err := client.NewStreamableHttpClient(scfg.URL, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("connect upstream %s: %w", name, err)
-	}
-	if err := c.Start(ctx); err != nil {
-		return nil, fmt.Errorf("start upstream %s: %w", name, err)
-	}
+
 	if _, err := c.Initialize(ctx, mcp.InitializeRequest{
 		Params: mcp.InitializeParams{
 			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
@@ -130,18 +165,24 @@ func registerUpstream(ctx context.Context, srv *server.MCPServer, name string, s
 		return nil, fmt.Errorf("list tools from %s: %w", name, err)
 	}
 
+	// If tools filter is specified, only those tools are registered.
+	// If tools filter is empty, all tools are registered (pass-through).
+	filterTools := scfg.Tools != nil && len(scfg.Tools) > 0
+
 	var registered []string
 	for _, tool := range toolsResult.Tools {
-		tcfg, ok := scfg.Tools[tool.Name]
-		if !ok {
-			continue
-		}
-
 		proxyTool := tool
 		upstreamName := tool.Name
 		renameMap := map[string]string{}
 
-		if !tcfg.KeepAsIs {
+		tcfg, inFilter := scfg.Tools[tool.Name]
+
+		if filterTools && !inFilter {
+			// Tool not in filter, skip it
+			continue
+		}
+
+		if inFilter && !tcfg.KeepAsIs {
 			if tcfg.Rename != "" {
 				proxyTool.Name = tcfg.Rename
 			}
@@ -158,6 +199,11 @@ func registerUpstream(ctx context.Context, srv *server.MCPServer, name string, s
 			}
 			if len(renameMap) > 0 {
 				renameArgs(&proxyTool, renameMap)
+			}
+		} else if !inFilter {
+			// Pass-through: apply prefix if set
+			if scfg.Prefix != "" {
+				proxyTool.Name = scfg.Prefix + tool.Name
 			}
 		}
 
@@ -232,4 +278,44 @@ func reverseRenameArgs(req *mcp.CallToolRequest, renameMap map[string]string) {
 			args[oldName] = v
 		}
 	}
+}
+
+// parseStdioCommand splits a stdio command string into command and args,
+// respecting quoted segments.
+func parseStdioCommand(s string) []string {
+	var parts []string
+	var current strings.Builder
+	inQuote := false
+
+	for _, r := range s {
+		switch {
+		case r == '"':
+			inQuote = !inQuote
+		case r == '\'' :
+			inQuote = !inQuote
+		case r == ' ' && !inQuote:
+			if current.Len() > 0 {
+				parts = append(parts, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteRune(r)
+		}
+	}
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+	return parts
+}
+
+// stdioEnvFromHeaders converts headers map to env slice format for stdio clients.
+func stdioEnvFromHeaders(headers map[string]string) []string {
+	if len(headers) == 0 {
+		return nil
+	}
+	env := make([]string, 0, len(headers))
+	for k, v := range headers {
+		env = append(env, k+"="+v)
+	}
+	return env
 }

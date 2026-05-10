@@ -1,8 +1,131 @@
 # llmdevkit
 
-A minimal MCP server exposing Unix-inspired file tools. Designed for low token usage and sandboxed file access.
+A toolkit for building and running AI-powered developer agents. Provides an MCP server with Unix-inspired file tools, a code indexer, and an ACP (Agent Client Protocol) server that orchestrates LLMs with tool-calling capabilities.
 
-## Usage
+## Executables
+
+| Binary | Description |
+|--------|-------------|
+| `llmdevkit-config` | Manage global and local configuration files |
+| `llmdevkit-setup` | Download and configure llama.cpp for embedding/reranking |
+| `llmdevkit-indexer` | Build and query the code index |
+| `llmdevkit-mcp` | MCP server — file tools, task management, command runner, code search, memory |
+| `llmdevkit-acp` | ACP server — agent harness with LLM orchestration, tool routing, and sub-agent invocation |
+
+Configuration is stored in `.llmdevkit/` (local, per-project) and `$XDG_CONFIG_HOME/llmdevkit/` (global), merged with local overriding global. Both directories are invisible to all MCP tools.
+
+- [llmdevkit-config](#llmdevkit-config)
+- [llmdevkit-setup](#llmdevkit-setup)
+- [llmdevkit-indexer](#llmdevkit-indexer)
+- [llmdevkit-mcp](#llmdevkit-mcp)
+- [llmdevkit-acp](#llmdevkit-acp)
+
+---
+
+## llmdevkit-config
+
+Manage the configuration file.
+
+```
+./llmdevkit-config [--global] <get|set> <namespace.key> [value]
+./llmdevkit-config <root> <get|set> <namespace.key> [value]
+```
+
+With `--global`, operations target the global configuration file instead of the local one. The `--global` flag cannot be combined with a root directory argument.
+
+Examples:
+
+```
+./llmdevkit-config set core.readonly true
+./llmdevkit-config --global set core.readonly yes
+./llmdevkit-config get core.readonly
+./llmdevkit-config /path/to/project set core.readonly yes
+```
+
+### `core.readonly`
+
+When set to `true` (or `1` / `yes`), the write tools are hidden from the server:
+
+- `file_create`
+- `sed`
+- `edit`
+- `rm`
+- `mv`
+
+### `core.file_read_block_size`
+
+Block size (number of lines) for the `file_read` tool. Default is `100`.
+
+### `commands` — User-defined commands
+
+The `commands` section lets you define named commands that can be listed and executed through the `available_commands` and `run_command` tools. Each command requires a `cmdline` and can optionally have a `description` and an `arguments` list.
+
+| Key | Required | Description |
+|-----|----------|-------------|
+| `commands.list` | Yes | Comma-separated list of command names |
+| `commands.<name>_cmdline` | Yes | The command line to execute |
+| `commands.<name>_description` | No | Human-readable description of the command |
+| `commands.<name>_arguments` | No | Comma-separated list of argument names the command accepts |
+
+Example configuration:
+
+```
+./llmdevkit-config set commands.list build,test,run
+./llmdevkit-config set commands.build_cmdline "make"
+./llmdevkit-config set commands.build_arguments "target"
+./llmdevkit-config set commands.test_cmdline "make test"
+./llmdevkit-config set commands.test_description "Run tests"
+```
+
+---
+
+## llmdevkit-setup
+
+Download and configure llama.cpp for embedding and reranking models.
+
+```
+./llmdevkit-setup [--global] [rootdirectory]
+```
+
+With `--global`, llama.cpp binaries and models are stored in the global config directory (`$XDG_CONFIG_HOME/llmdevkit/`), and the `[llama]` configuration is written there. This is recommended so that all projects share the same binaries and models. A root directory cannot be specified when using `--global`.
+
+Downloads llama.cpp (CPU-only x86_64), an embedding model and a reranking model, then writes the configuration to the config file.
+
+The index storage (vector database) is always local to each project at `[root]/.llmdevkit/index/`, since it is project-specific.
+
+### Configuration
+
+| Key | Description |
+|-----|-------------|
+| `llama.path` | Path to `llama-server` binary (may include extra flags) |
+| `llama.embedder` | HuggingFace repo ID for the embedding model |
+| `llama.embedder_flags` | Extra flags for the embedder llama-server instance (e.g. `--ctx-size 4096`) |
+| `llama.reranker` | HuggingFace repo ID for the reranking model (not required when `llama.reranker_enabled` is `false`) |
+| `llama.search_count` | Number of documents retrieved from the vector database (default: `50`) |
+| `llama.result_count` | Number of final results returned after reranking (default: `10`) |
+| `llama.reranker_enabled` | Set to `false`, `0`, `no`, `disabled`, or `off` to skip the reranker entirely (default: `true`) |
+| `llama.extractor` | HuggingFace repo ID for the chat model used for fact extraction (default: `unsloth/Qwen3.5-0.8B-GGUF`) |
+| `llama.extractor_flags` | Extra flags for the extractor llama-server instance (e.g. `--temp 0`) |
+
+---
+
+## llmdevkit-indexer
+
+Build and query the code index. The initial index can take several minutes depending on project size.
+
+```
+echo "reindex" | ./llmdevkit-indexer [rootdirectory]
+```
+
+Wait for the `ok` response, then start the MCP server with `--enable-indexer`. Subsequent startups will only index changed files (incremental via content hash tracking).
+
+---
+
+## llmdevkit-mcp
+
+MCP server exposing Unix-inspired file tools, task management, command runner, code search, and memory. Designed for low token usage and sandboxed file access.
+
+### Usage
 
 ```
 ./llmdevkit-mcp [--stdio|--http] [--address host:port] [--ignore pattern] [--show tools] [--hide tools] [--enable-indexer] [--enable-memory] [rootdirectory]
@@ -288,80 +411,19 @@ Current Tasks:
 
 No arguments.
 
-## Configuration
-
-`llmdevkit` reads configuration from two locations, merged with local overriding global:
-
-1. **Global**: `$XDG_CONFIG_HOME/llmdevkit/config.ini` (or `$HOME/.config/llmdevkit/config.ini` if `XDG_CONFIG_HOME` is unset)
-2. **Local**: `[root]/.llmdevkit/config.ini`
-
-Both the global and local `.llmdevkit` directories are invisible to all MCP tools — they cannot be listed, read, created, edited, or deleted through the server.
-
-The configuration is re-read on every request, so changes take effect without restarting the server.
-
-### `llmdevkit-config` — Manage the configuration file
-
-```
-./llmdevkit-config [--global] <get|set> <namespace.key> [value]
-./llmdevkit-config <root> <get|set> <namespace.key> [value]
-```
-
-With `--global`, operations target the global configuration file instead of the local one. The `--global` flag cannot be combined with a root directory argument.
-
-Examples:
-
-```
-./llmdevkit-config set core.readonly true
-./llmdevkit-config --global set core.readonly yes
-./llmdevkit-config get core.readonly
-./llmdevkit-config /path/to/project set core.readonly yes
-```
-
-### `core.readonly`
-
-When set to `true` (or `1` / `yes`), the write tools are hidden from the server:
-
-- `file_create`
-- `sed`
-- `edit`
-- `rm`
-- `mv`
-
-### `core.file_read_block_size`
-
-Block size (number of lines) for the `file_read` tool. Default is `100`.
-
-### `commands` — User-defined commands
-
-The `commands` section lets you define named commands that can be listed and executed through the `available_commands` and `run_command` tools. Each command requires a `cmdline` and can optionally have a `description` and an `arguments` list.
-
-| Key | Required | Description |
-|-----|----------|-------------|
-| `commands.list` | Yes | Comma-separated list of command names |
-| `commands.<name>_cmdline` | Yes | The command line to execute |
-| `commands.<name>_description` | No | Human-readable description of the command |
-| `commands.<name>_arguments` | No | Comma-separated list of argument names the command accepts |
-
-Example configuration:
-
-```
-./llmdevkit-config set commands.list build,test,run
-./llmdevkit-config set commands.build_cmdline "make"
-./llmdevkit-config set commands.build_arguments "target"
-./llmdevkit-config set commands.test_cmdline "make test"
-./llmdevkit-config set commands.test_description "Run tests"
-```
-
 ### `mcps` — Upstream MCP server proxying
 
-`llmdevkit` can proxy tools from upstream MCP servers, making them available as if they were built-in. Configuration is loaded from both global (`$XDG_CONFIG_HOME/llmdevkit/mcps.yml`) and local (`[root]/.llmdevkit/mcps.yml`), merged with local overriding global.
+`llmdevkit-mcp` can proxy tools from upstream MCP servers, making them available as if they were built-in. Configuration is loaded from both global (`$XDG_CONFIG_HOME/llmdevkit/mcps.yml`) and local (`[root]/.llmdevkit/mcps.yml`), merged with local overriding global.
 
 ```yaml
 mcps:
   myserver:
-    url: http://localhost:9001/mcp
+    url: http://localhost:9001/mcp          # streamable HTTP (alternative to sse and stdio)
+    # sse: http://localhost:9001/mcp/sse    # SSE transport (alternative to url and stdio)
+    # stdio: "./my-executable --flag"       # stdio transport (alternative to url and sse)
     headers:
       Authorization: Bearer token123
+    prefix: "my_"                            # prefix added to tool names not in tools map
     tools:
       search:
         rename: my_search
@@ -375,9 +437,12 @@ mcps:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `mcps.<name>.url` | Yes | URL of the upstream MCP server (streamable HTTP transport) |
-| `mcps.<name>.headers` | No | HTTP headers to send with each request |
-| `mcps.<name>.tools` | Yes | Map of upstream tool names to their configuration |
+| `mcps.<name>.url` | One of `url`, `sse`, `stdio` | URL of the upstream MCP server (streamable HTTP transport) |
+| `mcps.<name>.sse` | One of `url`, `sse`, `stdio` | URL of the upstream MCP server (SSE transport) |
+| `mcps.<name>.stdio` | One of `url`, `sse`, `stdio` | Command line for stdio transport (parsed with shell-style splitting) |
+| `mcps.<name>.headers` | No | HTTP headers to send with each request (or env vars for stdio) |
+| `mcps.<name>.prefix` | No | Prefix added to tool names not explicitly listed in the `tools` map |
+| `mcps.<name>.tools` | No | Map of upstream tool names to their configuration |
 
 For each tool entry:
 
@@ -388,170 +453,89 @@ For each tool entry:
 | `arguments` | No | Map of argument names to `{rename, description}` overrides |
 | `keep_as_is` | No | If `true`, pass the tool through unchanged (no rename/description overrides) |
 
-Only tools explicitly listed in the `tools` map are proxied. Other tools from the upstream server are ignored.
+When `tools` is omitted, all upstream tools are proxied. When present, only listed tools are proxied. Proxied tools are excluded from `--show`/`--hide` filtering — they are always visible.
 
-Proxied tools are excluded from `--show`/`--hide` filtering — they are always visible.
+### Code Indexer
 
-## Code Indexer
+Requires `--enable-indexer`. Provides `relevant_code` (semantic code search) and `search_symbol_in_code` (symbol substring search). Powered by llama.cpp embedding and reranking models. See [llmdevkit-setup](#llmdevkit-setup) for configuration.
 
-llmdevkit includes an optional code indexer that provides semantic code search using local embedding and reranking models powered by llama.cpp. It runs as a child process of the main llmdevkit server.
+### Memory
 
-### Setup
+Requires `--enable-memory`. Provides `memory_put` (store a fact), `relevant_memory` (semantic fact retrieval), and `memory_extract` (LLM-powered fact extraction from text). Uses the same llama.cpp infrastructure as the code indexer.
 
-```
-./llmdevkit-setup [--global] [rootdirectory]
-```
+---
 
-With `--global`, llama.cpp binaries and models are stored in the global config directory (`$XDG_CONFIG_HOME/llmdevkit/`), and the `[llama]` configuration is written there. This is recommended so that all projects share the same binaries and models. A root directory cannot be specified when using `--global`.
+## llmdevkit-acp
 
-Downloads llama.cpp (CPU-only x86_64), an embedding model and a reranking model, then writes the configuration to the config file.
+ACP (Agent Client Protocol) server that orchestrates LLMs with tool-calling capabilities. Implements a fully compliant [ACP agent](https://agentclientprotocol.com/) using stdio transport.
 
-The index storage (vector database) is always local to each project at `[root]/.llmdevkit/index/`, since it is project-specific.
+Configuration is loaded from `.llmdevkit/` (local) and `$XDG_CONFIG_HOME/llmdevkit/` (global), merged with local overriding global. Three YAML files define the agent behavior:
 
-### First-time indexing
+### `llms.yml` — LLM endpoints
 
-The initial index can take several minutes depending on project size. It is recommended to warm up the index before launching the MCP server:
+List of OpenAI-compatible endpoints.
 
-```
-echo "reindex" | ./llmdevkit-indexer [rootdirectory]
-```
-
-Wait for the `ok` response, then start the MCP server with `--enable-indexer`. Subsequent startups will only index changed files (incremental via content hash tracking).
-
-### `relevant_code` — Semantic code search
-
-| Argument | Description |
-|----------|-------------|
-| `prompt` | Description of the code you are looking for |
-
-Requires `--enable-indexer`. Returns results as blocks separated by an empty line:
-
-```
-Signature: func myFunction(x int) error
-File: pkg/handler.go
-Line Range: 42-58
-Language: go
-Type: function
-
-Signature: type MyStruct struct
-File: pkg/types.go
-Line Range: 10-15
-Language: go
-Type: type
+```yaml
+llms:
+  - name: main
+    api_base: http://1.2.3.4/v1
+    model: my-model        # optional
+    api_key: sk-xxx        # optional
+    headers:               # optional
+      Authorization: Bearer sk-xxx
 ```
 
-Use `file_read` with the reported line range to read the actual code. Returns an empty string if the indexer is not ready or no results are found.
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Identifier used in `agents.yml` to reference this LLM |
+| `api_base` | Yes | OpenAI-compatible API base URL |
+| `model` | No | Model name override |
+| `api_key` | No | API key (also sent as `Authorization: Bearer <key>` header) |
+| `headers` | No | Additional HTTP headers merged into every request |
 
-### `search_symbol_in_code` — Search symbol in indexed signatures
+### `mcps.yml` — MCP tool servers
 
-| Argument | Description |
-|----------|-------------|
-| `symbol_name` | Symbol name to search for (substring match) |
+Same format as [llmdevkit-mcp upstream proxying](#mcps--upstream-mcp-server-proxying). Defines MCP servers whose tools are available to agents. Supports `url` (streamable HTTP), `sse`, and `stdio` transports.
 
-Requires `--enable-indexer`. Searches all indexed code signatures for the given symbol name (substring match). Returns results in the same block format as `relevant_code`. Returns an empty string if the indexer is not ready or no results are found.
+### `agents.yml` — Agent definitions
 
-### Configuration
+Each agent binds an LLM, a set of tools, a system prompt, and lifecycle hooks.
 
-The indexer reads the `[llama]` section from the merged global+local configuration:
-
-| Key | Description |
-|-----|-------------|
-| `llama.path` | Path to `llama-server` binary (may include extra flags) |
-| `llama.embedder` | HuggingFace repo ID for the embedding model |
-| `llama.reranker` | HuggingFace repo ID for the reranking model (not required when `llama.reranker_enabled` is `false`) |
-| `llama.search_count` | Number of documents retrieved from the vector database (default: `50`) |
-| `llama.result_count` | Number of final results returned after reranking (default: `10`) |
-| `llama.reranker_enabled` | Set to `false`, `0`, `no`, `disabled`, or `off` to skip the reranker entirely. When disabled, results are scored by vector similarity only and the reranker server is not started (default: `true`) |
-
-## Memory
-
-llmdevkit includes an optional memory subsystem that provides persistent fact storage and semantic retrieval using the same llama.cpp embedding infrastructure as the code indexer. Facts are embedded, stored in a vector database, and can be recalled by semantic similarity.
-
-### Setup
-
-The memory subsystem requires the `[llama]` configuration section (shared with the code indexer). Run the indexer setup first:
-
-```
-./llmdevkit-setup [--global] [rootdirectory]
+```yaml
+agents:
+  - name: myagent
+    llm: main                     # name from llms.yml
+    tools: myserver devkit agents # space-separated tool sources
+    system_prompt: You are a helpful assistant
+    hooks:
+      on_conversation_begin:      # fired once when conversation starts
+        my_tool:
+          argname: "%p"           # %p is replaced with the user prompt
+      on_turn_begin:              # fired before each LLM turn
+        another_tool:
+          argname: fixed-value
+      on_turn_end:                # fired after each LLM turn
+      on_conversation_end:        # fired when conversation ends
 ```
 
-Then start the MCP server with `--enable-memory`:
+#### Tool sources
+
+The `tools` field is a space-separated list. Each token can be:
+
+| Token | Description |
+|-------|-------------|
+| A name from `mcps.yml` | All tools from that MCP server are attached |
+| `devkit` | In-process `llmdevkit-mcp` instance (file tools, tasks, commands, etc.) |
+| `agents` | Sub-agent invocation tools: `agents_available` (list agents) and `agent_invoke` (run agent with prompt). Each sub-agent invocation uses a fresh context — no conversation sharing. |
+
+#### Hooks
+
+Hooks are automatic tool calls at specific lifecycle points. Each hook maps tool names to argument overrides. The special `%p` placeholder is replaced with the current user prompt text.
+
+### Usage
 
 ```
-./llmdevkit-mcp --enable-memory [rootdirectory]
+./llmdevkit-acp
 ```
 
-The memory store is persisted at `[root]/.llmdevkit/memory/` and survives server restarts.
-
-### `memory_put` — Store a fact
-
-| Argument | Description |
-|----------|-------------|
-| `fact` | Fact phrase to memorize |
-
-Requires `--enable-memory`. Embeds the fact and stores it in the vector database. Duplicate facts (identical text) are deduplicated — re-adding the same fact overwrites the previous entry. Each fact tracks:
-
-- `created_at` — timestamp of first insertion
-- `last_used` — timestamp of last retrieval
-- `recall_count` — number of times the fact was retrieved
-
-Returns the total number of stored facts.
-
-### `relevant_memory` — Search relevant facts
-
-| Argument | Description |
-|----------|-------------|
-| `prompt` | Query to find relevant memories |
-
-Requires `--enable-memory`. Embeds the prompt, searches the vector database for semantically similar facts, and returns up to 10 results ranked by similarity. Each retrieval updates `last_used` and increments `recall_count` for the matched facts.
-
-Each result is a JSON object:
-
-```json
-{
-  "id": "sha256 hex prefix",
-  "fact": "the original fact text",
-  "created_at": "2025-01-15T10:30:00Z",
-  "last_used": "2025-01-16T14:20:00Z",
-  "recall_count": 3,
-  "score": 0.92
-}
-```
-
-Returns `No relevant memories found.` if the memory store is empty or no matches exist.
-
-### `memory_extract` — Extract facts from text
-
-| Argument | Description |
-|----------|-------------|
-| `text` | Text to extract facts from (conversation, notes, document) |
-
-Requires `--enable-memory` and a configured extractor model. Sends the text to a small local LLM (default: Qwen3.5-0.8B Q4) which extracts discrete factual statements. For each extracted fact:
-
-1. The vector database is checked for similar existing facts (cosine similarity > 0.85)
-2. Near-duplicates (similarity > 0.93) are skipped
-3. Rephrases of existing facts (verified by the LLM) are skipped
-4. New or refined facts are stored
-
-Each result is a JSON object with an `action` field:
-
-```json
-{"fact": "extracted fact text", "action": "stored"}
-{"fact": "extracted fact text", "action": "stored_refined", "similar": "existing similar fact"}
-{"fact": "already known fact", "action": "skipped_duplicate", "similar": "existing fact"}
-{"fact": "rephrased fact", "action": "skipped_rephrase", "similar": "existing fact"}
-```
-
-Returns `No extractable facts found in the text.` if nothing could be extracted.
-
-### Configuration
-
-The memory subsystem reads the `[llama]` section from the merged configuration:
-
-| Key | Description |
-|-----|-------------|
-| `llama.path` | Path to `llama-server` binary (may include extra flags) |
-| `llama.embedder` | HuggingFace repo ID for the embedding model |
-| `llama.embedder_flags` | Extra flags for the embedder llama-server instance (e.g. `--ctx-size 4096`) |
-| `llama.extractor` | HuggingFace repo ID for the chat model used for fact extraction (default: `unsloth/Qwen3.5-0.8B-GGUF`) |
-| `llama.extractor_flags` | Extra flags for the extractor llama-server instance (e.g. `--temp 0`) |
+Communicates over stdio using the ACP JSON-RPC protocol. Designed to be launched by an ACP-compatible client.
