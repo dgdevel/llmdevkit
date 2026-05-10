@@ -54,7 +54,14 @@ func main() {
 		os.Exit(1)
 	}
 	if llmCfg == nil {
-		fmt.Fprintf(os.Stderr, "llmdevkit-acp: no llms.yml config found in %s\n", rootDir)
+		localPath := llms.ConfigPath(rootDir)
+		globalPath := llms.GlobalConfigPath()
+		fmt.Fprintf(os.Stderr, "llmdevkit-acp: no llms.yml config found\n")
+		fmt.Fprintf(os.Stderr, "  searched:\n")
+		fmt.Fprintf(os.Stderr, "    %s\n", localPath)
+		if globalPath != "" {
+			fmt.Fprintf(os.Stderr, "    %s\n", globalPath)
+		}
 		os.Exit(1)
 	}
 
