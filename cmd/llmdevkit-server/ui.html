@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM DevKit</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#1e1e2e;--surface:#2a2a3c;--surface2:#33334a;--border:#444466;--text:#cdd6f4;--text2:#a6adc8;--accent:#89b4fa;--green:#a6e3a1;--red:#f38ba8;--yellow:#f9e2af;--mauve:#cba6f7;--peach:#fab387;--teal:#94e2d5}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+/* Top bar */
+.topbar{display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--border);min-height:44px;flex-shrink:0}
+.topbar .brand{font-weight:700;color:var(--accent);font-size:14px}
+.topbar .state{font-size:13px;color:var(--text2);flex:1}
+.topbar .state .running{color:var(--green);font-weight:600}
+.topbar .llm-name{font-size:13px;color:var(--mauve)}
+.topbar button{background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px}
+.topbar button:hover{background:var(--border)}
+.topbar button.danger{border-color:var(--red);color:var(--red)}
+.topbar button.danger:hover{background:var(--red);color:var(--bg)}
+/* Layout */
+.layout{display:flex;flex:1;overflow:hidden}
+/* Sidebar */
+.sidebar{width:260px;min-width:200px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-section{padding:12px;border-bottom:1px solid var(--border)}
+.sidebar-section h3{font-size:11px;text-transform:uppercase;color:var(--text2);margin-bottom:8px;letter-spacing:0.5px}
+.sidebar-section select,.sidebar-section input{width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:6px 8px;border-radius:4px;font-size:13px}
+.sidebar-section select:focus,.sidebar-section input:focus{outline:none;border-color:var(--accent)}
+.conv-list{flex:1;overflow-y:auto;padding:4px}
+.conv-item{padding:8px 12px;border-radius:4px;cursor:pointer;font-size:13px;color:var(--text2);display:flex;justify-content:space-between;align-items:center}
+.conv-item:hover{background:var(--surface2)}
+.conv-item.active{background:var(--surface2);color:var(--accent)}
+.conv-item .del{display:none;background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0 4px}
+.conv-item:hover .del{display:block}
+.new-conv-btn{margin:8px 12px;padding:6px;background:var(--surface2);border:1px dashed var(--border);border-radius:4px;color:var(--text2);cursor:pointer;font-size:12px;text-align:center}
+.new-conv-btn:hover{border-color:var(--accent);color:var(--accent)}
+/* Main pane */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.messages{flex:1;overflow-y:auto;padding:16px 24px;display:flex;flex-direction:column;gap:12px}
+/* Bubbles */
+.bubble{max-width:85%;padding:10px 14px;border-radius:10px;font-size:14px;line-height:1.5;word-wrap:break-word;position:relative}
+.bubble pre{background:var(--bg);padding:8px;border-radius:4px;overflow-x:auto;margin:6px 0;font-size:13px}
+.bubble code{background:var(--bg);padding:1px 4px;border-radius:3px;font-size:13px}
+.bubble pre code{background:none;padding:0}
+.bubble p{margin:4px 0}
+.bubble ul,.bubble ol{margin:4px 0 4px 20px}
+.bubble h1,.bubble h2,.bubble h3,.bubble h4{margin:8px 0 4px}
+.bubble table{border-collapse:collapse;margin:6px 0}
+.bubble th,.bubble td{border:1px solid var(--border);padding:4px 8px;font-size:13px}
+.bubble th{background:var(--surface2)}
+/* Bubble types */
+.bubble-system{background:var(--surface2);color:var(--text2);align-self:center;font-style:italic;font-size:13px;max-width:95%}
+.bubble-tools{background:var(--surface2);color:var(--teal);align-self:center;max-width:95%;font-size:13px}
+.bubble-tools .tool-box{display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;margin:2px;font-size:12px}
+.bubble-user{background:#3b3b5c;align-self:flex-end;border-bottom-right-radius:2px}
+.bubble-llm{background:var(--surface2);align-self:flex-start;border-bottom-left-radius:2px}
+.bubble-thinking{background:transparent;border:1px dashed var(--border);color:var(--text2);align-self:flex-start;font-style:italic;font-size:13px}
+.bubble-tool-req{background:var(--surface2);border-left:3px solid var(--yellow);align-self:flex-start;font-size:13px;max-width:90%}
+.bubble-tool-resp{background:var(--surface2);border-left:3px solid var(--green);align-self:flex-start;font-size:13px;max-width:90%}
+.bubble-error{background:#3b2030;border-left:3px solid var(--red);color:var(--red);align-self:center}
+.bubble-label{font-size:11px;text-transform:uppercase;color:var(--text2);margin-bottom:4px;letter-spacing:0.5px}
+.bubble-system .bubble-label{color:var(--mauve)}
+.bubble-user .bubble-label{color:var(--accent)}
+.bubble-llm .bubble-label{color:var(--green)}
+.bubble-thinking .bubble-label{color:var(--text2)}
+.bubble-tool-req .bubble-label{color:var(--yellow)}
+.bubble-tool-resp .bubble-label{color:var(--teal)}
+/* Ask tool panels */
+.ask-panel{background:var(--surface2);border:2px solid var(--accent);border-radius:8px;padding:14px;margin:8px 0;max-width:90%;align-self:center}
+.ask-panel .ask-title{font-weight:700;color:var(--accent);margin-bottom:8px;font-size:14px}
+.ask-panel textarea,.ask-panel input,.ask-panel select{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:8px;border-radius:4px;font-size:13px;font-family:inherit;margin:4px 0}
+.ask-panel textarea:focus,.ask-panel input:focus{outline:none;border-color:var(--accent)}
+.ask-panel .btn-row{display:flex;gap:8px;margin-top:8px}
+.ask-panel button{padding:6px 16px;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:13px}
+.ask-panel .btn-approve{background:var(--green);color:var(--bg);border-color:var(--green);font-weight:600}
+.ask-panel .btn-deny{background:var(--surface2);color:var(--red);border-color:var(--red)}
+.ask-panel .deny-reason{margin-top:8px}
+.ask-panel .choice-btn{display:inline-block;margin:3px;padding:4px 12px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:13px}
+.ask-panel .choice-btn:hover,.ask-panel .choice-btn.selected{background:var(--accent);color:var(--bg)}
+/* Input area */
+.input-area{padding:12px 24px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.input-row{display:flex;gap:8px;align-items:flex-end}
+.input-row textarea{flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:14px;font-family:inherit;resize:none;min-height:44px;max-height:200px}
+.input-row textarea:focus{outline:none;border-color:var(--accent)}
+.input-row button{padding:10px 20px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;white-space:nowrap}
+.input-row button:hover{opacity:0.9}
+.input-row button:disabled{opacity:0.4;cursor:not-allowed}
+/* Scrollbar */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text2)}
+/* Setup modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:400px;max-width:600px}
+.modal h2{margin-bottom:16px;color:var(--accent)}
+.modal label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;margin-top:12px}
+.modal select,.modal textarea{width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:8px;border-radius:4px;font-size:13px;font-family:inherit}
+.modal textarea{min-height:100px}
+.modal .btn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.modal button{padding:8px 20px;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:13px}
+.modal .btn-primary{background:var(--accent);color:var(--bg);font-weight:600;border-color:var(--accent)}
+</style>
+</head>
+<body>
+<!-- Top bar -->
+<div class="topbar">
+  <span class="brand">LLM DevKit</span>
+  <span class="llm-name" id="llmName"></span>
+  <span class="state" id="stateInfo"></span>
+  <button class="danger" id="cancelBtn" style="display:none" onclick="cancelSession()">⏹ Cancel</button>
+</div>
+<!-- Layout -->
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <h3>Agent</h3>
+      <select id="agentSelect" onchange="onAgentChange()"></select>
+    </div>
+    <div class="sidebar-section" style="padding-bottom:4px">
+      <h3>Conversations</h3>
+    </div>
+    <div class="conv-list" id="convList"></div>
+    <div class="new-conv-btn" onclick="newConversation()">+ New Conversation</div>
+  </div>
+  <!-- Main pane -->
+  <div class="main">
+    <div class="messages" id="messages"></div>
+    <div class="input-area">
+      <div class="input-row">
+        <textarea id="promptInput" rows="1" placeholder="Type your prompt… (Ctrl+Enter to send)" onkeydown="onPromptKey(event)" oninput="autoGrow(this)"></textarea>
+        <button id="sendBtn" onclick="sendPrompt()">▶ Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Setup modal (shown for first message in new conversation) -->
+<div class="modal-overlay" id="setupModal" style="display:none">
+  <div class="modal">
+    <h2>Start Conversation</h2>
+    <label>Agent</label>
+    <select id="setupAgent"></select>
+    <label>System Prompt Override (optional)</label>
+    <textarea id="setupSysPrompt" placeholder="Leave empty to use agent default…"></textarea>
+    <div class="btn-row">
+      <button onclick="cancelSetup()">Cancel</button>
+      <button class="btn-primary" onclick="confirmSetup()">Start</button>
+    </div>
+  </div>
+</div>
+<script>
+// State
+let agents = [];
+let conversations = []; // [{id, agent, systemPrompt, messages:[], acpSessionId}]
+let activeConvId = null;
+let running = false;
+let pendingAsk = null; // {id, type, params, resolve, reject}
+let setupResolve = null;
+
+// Init
+window.onload = async () => {
+  await loadAgents();
+  await loadConversations();
+  renderConvList();
+  if (conversations.length > 0) {
+    selectConversation(conversations[0].id);
+  }
+  connectSSE();
+};
+
+async function loadAgents() {
+  const r = await fetch('/api/agents');
+  agents = await r.json();
+  const sel = document.getElementById('agentSelect');
+  const sel2 = document.getElementById('setupAgent');
+  sel.innerHTML = '';
+  sel2.innerHTML = '';
+  agents.forEach(a => {
+    sel.innerHTML += `<option value="${a.name}">${a.name}</option>`;
+    sel2.innerHTML += `<option value="${a.name}">${a.name}</option>`;
+  });
+}
+
+async function loadConversations() {
+  const r = await fetch('/api/conversations');
+  conversations = await r.json();
+}
+
+function renderConvList() {
+  const el = document.getElementById('convList');
+  el.innerHTML = '';
+  conversations.forEach(c => {
+    const active = c.id === activeConvId ? ' active' : '';
+    const label = c.title || c.id.slice(0,8);
+    el.innerHTML += `<div class="conv-item${active}" onclick="selectConversation('${c.id}')">
+      <span>${esc(label)}</span>
+      <button class="del" onclick="event.stopPropagation();deleteConversation('${c.id}')">×</button>
+    </div>`;
+  });
+}
+
+async function selectConversation(id) {
+  activeConvId = id;
+  renderConvList();
+  const conv = conversations.find(c => c.id === id);
+  if (conv) {
+    document.getElementById('agentSelect').value = conv.agent || agents[0]?.name || '';
+    renderMessages(conv);
+    updateState(conv);
+  }
+}
+
+async function deleteConversation(id) {
+  await fetch('/api/conversations/' + id, {method:'DELETE'});
+  conversations = conversations.filter(c => c.id !== id);
+  if (activeConvId === id) {
+    activeConvId = conversations[0]?.id || null;
+  }
+  renderConvList();
+  if (activeConvId) selectConversation(activeConvId);
+  else document.getElementById('messages').innerHTML = '';
+}
+
+async function newConversation() {
+  // Show setup modal
+  document.getElementById('setupModal').style.display = 'flex';
+  document.getElementById('setupAgent').value = document.getElementById('agentSelect').value;
+  document.getElementById('setupSysPrompt').value = '';
+  return new Promise(r => { setupResolve = r; });
+}
+
+function cancelSetup() {
+  document.getElementById('setupModal').style.display = 'none';
+  setupResolve = null;
+}
+
+async function confirmSetup() {
+  const agent = document.getElementById('setupAgent').value;
+  const sysPrompt = document.getElementById('setupSysPrompt').value;
+  document.getElementById('setupModal').style.display = 'none';
+  const r = await fetch('/api/conversations', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({agent, system_prompt: sysPrompt})
+  });
+  const conv = await r.json();
+  conversations.unshift(conv);
+  activeConvId = conv.id;
+  renderConvList();
+  selectConversation(conv.id);
+  if (setupResolve) setupResolve(conv);
+}
+
+function onAgentChange() {
+  // Just update sidebar display; actual agent used at conversation level
+}
+
+function getActiveConv() {
+  return conversations.find(c => c.id === activeConvId);
+}
+
+function updateState(conv) {
+  const stateEl = document.getElementById('stateInfo');
+  const cancelBtn = document.getElementById('cancelBtn');
+  const sendBtn = document.getElementById('sendBtn');
+  const llmEl = document.getElementById('llmName');
+  if (!conv) {
+    stateEl.innerHTML = '';
+    cancelBtn.style.display = 'none';
+    sendBtn.disabled = true;
+    llmEl.textContent = '';
+    return;
+  }
+  const agentName = conv.agent || '';
+  const ag = agents.find(a => a.name === agentName);
+  llmEl.textContent = ag?.llm || agentName;
+  if (running) {
+    stateEl.innerHTML = '<span class="running">● Running</span>';
+    cancelBtn.style.display = '';
+    sendBtn.disabled = true;
+  } else {
+    stateEl.textContent = 'Idle';
+    cancelBtn.style.display = 'none';
+    sendBtn.disabled = false;
+  }
+}
+
+// Render messages as bubbles
+function renderMessages(conv) {
+  const el = document.getElementById('messages');
+  el.innerHTML = '';
+  if (!conv) return;
+  // System prompt bubble
+  if (conv.system_prompt) {
+    el.innerHTML += bubbleHTML('system', 'System Prompt', conv.system_prompt);
+  }
+  // Tools list bubble
+  if (conv.tools && conv.tools.length > 0) {
+    const toolsHTML = conv.tools.map(t => `<span class="tool-box">${esc(t)}</span>`).join(' ');
+    el.innerHTML += bubbleHTML('tools', 'Available Tools', toolsHTML, true);
+  }
+  // Messages
+  (conv.messages || []).forEach(m => {
+    el.innerHTML += renderBubble(m);
+  });
+  scrollToBottom();
+}
+
+function renderBubble(m) {
+  switch(m.type) {
+    case 'user': return bubbleHTML('user', 'You', md(m.content));
+    case 'llm': return bubbleHTML('llm', 'Assistant', md(m.content));
+    case 'thinking': return bubbleHTML('thinking', 'Thinking', md(m.content));
+    case 'tool_request': return bubbleHTML('tool-req', `Tool: ${esc(m.name)}`, `<pre>${esc(m.content)}</pre>`, true);
+    case 'tool_response': return bubbleHTML('tool-resp', `Result: ${esc(m.name)}`, `<pre>${esc(m.content)}</pre>`, true);
+    case 'ask_open_ended': return renderAskOpenEnded(m);
+    case 'ask_exec': return renderAskExec(m);
+    case 'ask_multiple_choice': return renderAskMultipleChoice(m);
+    case 'error': return bubbleHTML('error', 'Error', esc(m.content));
+    default: return bubbleHTML('system', m.type, esc(m.content||''));
+  }
+}
+
+function bubbleHTML(cls, label, content, raw) {
+  return `<div class="bubble bubble-${cls}">
+    <div class="bubble-label">${label}</div>
+    <div class="bubble-content">${raw ? content : content}</div>
+  </div>`;
+}
+
+function md(text) {
+  if (!text) return '';
+  try { return marked.parse(text); } catch(e) { return esc(text); }
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function scrollToBottom() {
+  const el = document.getElementById('messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function autoGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+}
+
+function onPromptKey(e) {
+  if (e.key === 'Enter' && e.ctrlKey) {
+    e.preventDefault();
+    sendPrompt();
+  }
+}
+
+async function sendPrompt() {
+  const input = document.getElementById('promptInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.style.height = 'auto';
+
+  let conv = getActiveConv();
+  if (!conv) {
+    // Force new conversation via modal
+    await newConversation();
+    conv = getActiveConv();
+    if (!conv) return;
+  }
+
+  // First message needs session init
+  if (!conv.acp_session_id) {
+    const initR = await fetch('/api/conversations/' + conv.id + '/init', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({prompt: text})
+    });
+    const data = await initR.json();
+    if (data.error) { alert(data.error); return; }
+    conv = data.conversation || conv;
+    // Update in list
+    const idx = conversations.findIndex(c => c.id === conv.id);
+    if (idx >= 0) conversations[idx] = conv;
+    renderMessages(conv);
+    updateState(conv);
+    return;
+  }
+
+  // Send prompt to existing session
+  conv.messages.push({type:'user', content: text});
+  renderMessages(conv);
+  running = true;
+  updateState(conv);
+
+  try {
+    const r = await fetch('/api/conversations/' + conv.id + '/prompt', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({prompt: text})
+    });
+    const data = await r.json();
+    if (data.conversation) {
+      Object.assign(conv, data.conversation);
+    }
+  } catch(e) {
+    conv.messages.push({type:'error', content: 'Fetch error: ' + e.message});
+  }
+  running = false;
+  renderMessages(conv);
+  updateState(conv);
+  scrollToBottom();
+}
+
+async function cancelSession() {
+  const conv = getActiveConv();
+  if (!conv) return;
+  await fetch('/api/conversations/' + conv.id + '/cancel', {method:'POST'});
+  running = false;
+  updateState(conv);
+}
+
+// SSE for real-time updates
+function connectSSE() {
+  const es = new EventSource('/api/events');
+  es.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    handleEvent(data);
+  };
+  es.onerror = () => {
+    setTimeout(connectSSE, 3000);
+  };
+}
+
+function handleEvent(ev) {
+  const conv = conversations.find(c => c.id === ev.conversation_id);
+  if (!conv) return;
+  switch(ev.event) {
+    case 'session_update':
+      handleSessionUpdate(conv, ev.data);
+      break;
+    case 'ask_open_ended':
+      handleAskOpenEnded(conv, ev);
+      break;
+    case 'ask_exec':
+      handleAskExec(conv, ev);
+      break;
+    case 'ask_multiple_choice':
+      handleAskMultipleChoice(conv, ev);
+      break;
+    case 'state':
+      running = ev.data?.running || false;
+      updateState(conv);
+      break;
+  }
+  if (conv.id === activeConvId) {
+    renderMessages(conv);
+    scrollToBottom();
+  }
+}
+
+function handleSessionUpdate(conv, update) {
+  // update is a SessionUpdate from ACP
+  // We accumulate into conv.messages
+  const u = update;
+  if (u.agentMessageChunk) {
+    appendOrMerge(conv, 'llm', u.agentMessageChunk.content);
+  } else if (u.agentThoughtChunk) {
+    appendOrMerge(conv, 'thinking', u.agentThoughtChunk.content);
+  } else if (u.toolCall) {
+    conv.messages.push({type:'tool_request', name: u.toolCall.title, content: JSON.stringify(u.toolCall)});
+  } else if (u.toolCallUpdate) {
+    // Append tool result
+    const tc = u.toolCallUpdate;
+    if (tc.status === 'completed' && tc.content) {
+      let text = '';
+      tc.content.forEach(c => { if(c.text) text += c.text; });
+      conv.messages.push({type:'tool_response', name: tc.toolCallId, content: text});
+    }
+  } else if (u.userMessageChunk) {
+    // User echo, ignore
+  }
+}
+
+function appendOrMerge(conv, type, contentBlock) {
+  const text = contentBlock?.text || '';
+  if (!text) return;
+  const last = conv.messages[conv.messages.length - 1];
+  if (last && last.type === type && last._merging) {
+    last.content += text;
+  } else {
+    conv.messages.push({type, content: text, _merging: true});
+  }
+}
+
+// Ask tool: open-ended
+function handleAskOpenEnded(conv, ev) {
+  const msg = {type:'ask_open_ended', id: ev.ask_id, question: ev.data.question, answered: false, answer: ''};
+  conv.messages.push(msg);
+  if (conv.id === activeConvId) renderMessages(conv);
+}
+
+function renderAskOpenEnded(m) {
+  if (m.answered) {
+    return bubbleHTML('tool-resp', 'Your Answer', esc(m.answer));
+  }
+  return `<div class="ask-panel" id="ask-${m.id}">
+    <div class="ask-title">💬 Question</div>
+    <p>${md(m.question)}</p>
+    <textarea id="ask-input-${m.id}" rows="3" placeholder="Your answer…"></textarea>
+    <div class="btn-row">
+      <button class="btn-approve" onclick="answerAsk('${m.id}', document.getElementById('ask-input-${m.id}').value)">Submit</button>
+    </div>
+  </div>`;
+}
+
+// Ask tool: exec
+function handleAskExec(conv, ev) {
+  const msg = {
+    type:'ask_exec', id: ev.ask_id,
+    cmdline: ev.data.cmdline,
+    timeout: ev.data.timeout || 30,
+    answered: false, approved: false, answer: ''
+  };
+  conv.messages.push(msg);
+  if (conv.id === activeConvId) renderMessages(conv);
+}
+
+function renderAskExec(m) {
+  if (m.answered) {
+    const status = m.approved ? '✅ Approved' : '❌ Denied';
+    return bubbleHTML(m.approved ? 'tool-resp' : 'error', `ask_exec ${status}`, esc(m.approved ? m.cmdline : 'Denied: ' + m.answer));
+  }
+  return `<div class="ask-panel" id="ask-${m.id}">
+    <div class="ask-title">⚡ Execute Command</div>
+    <label style="color:var(--text2);font-size:12px">Command:</label>
+    <input id="ask-cmd-${m.id}" value="${esc(m.cmdline)}" />
+    <label style="color:var(--text2);font-size:12px">Timeout (seconds):</label>
+    <input id="ask-timeout-${m.id}" type="number" value="${m.timeout}" min="1" />
+    <div class="btn-row">
+      <button class="btn-approve" onclick="answerExec('${m.id}', true)">Approve</button>
+      <button class="btn-deny" onclick="answerExec('${m.id}', false)">Deny</button>
+    </div>
+    <div class="deny-reason" id="deny-row-${m.id}" style="display:none">
+      <label style="color:var(--text2);font-size:12px">Reason for denial (optional):</label>
+      <input id="ask-deny-${m.id}" placeholder="Explain to the agent…" />
+      <button class="btn-deny" onclick="submitDeny('${m.id}')" style="margin-top:4px">Submit Deny</button>
+    </div>
+  </div>`;
+}
+
+// Ask tool: multiple choice
+function handleAskMultipleChoice(conv, ev) {
+  const msg = {
+    type:'ask_multiple_choice', id: ev.ask_id,
+    question: ev.data.question,
+    choices: ev.data.choices || [],
+    allow_open_ended: ev.data.allow_open_ended || false,
+    answered: false, answer: ''
+  };
+  conv.messages.push(msg);
+  if (conv.id === activeConvId) renderMessages(conv);
+}
+
+function renderAskMultipleChoice(m) {
+  if (m.answered) {
+    return bubbleHTML('tool-resp', 'Your Choice', esc(m.answer));
+  }
+  let choices = m.choices.map((c,i) =>
+    `<button class="choice-btn" onclick="answerChoice('${m.id}', ${i}, this)">${esc(c)}</button>`
+  ).join('');
+  let openEnd = '';
+  if (m.allow_open_ended) {
+    openEnd = `<div style="margin-top:8px">
+      <input id="ask-custom-${m.id}" placeholder="Type your own response…" style="width:calc(100% - 80px)" />
+      <button class="choice-btn" onclick="answerCustom('${m.id}')">Submit</button>
+    </div>`;
+  }
+  return `<div class="ask-panel" id="ask-${m.id}">
+    <div class="ask-title">❓ Multiple Choice</div>
+    <p>${md(m.question)}</p>
+    <div>${choices}</div>
+    ${openEnd}
+  </div>`;
+}
+
+// Answer handlers
+async function answerAsk(askId, answer) {
+  await fetch('/api/ask/' + askId, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({type:'open_ended', answer})
+  });
+}
+
+function answerExec(askId, approved) {
+  if (approved) {
+    const cmd = document.getElementById('ask-cmd-' + askId).value;
+    const timeout = parseInt(document.getElementById('ask-timeout-' + askId).value) || 30;
+    fetch('/api/ask/' + askId, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({type:'exec', approved:true, cmdline:cmd, timeout})
+    });
+    // Update local
+    markAskAnswered(askId, true, cmd);
+  } else {
+    document.getElementById('deny-row-' + askId).style.display = 'block';
+  }
+}
+
+function submitDeny(askId) {
+  const reason = document.getElementById('ask-deny-' + askId).value;
+  fetch('/api/ask/' + askId, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({type:'exec', approved:false, deny_reason: reason})
+  });
+  markAskAnswered(askId, false, reason);
+}
+
+function answerChoice(askId, idx, btn) {
+  const conv = getActiveConv();
+  const msg = conv?.messages?.find(m => m.id === askId);
+  const choice = msg?.choices?.[idx] || '';
+  fetch('/api/ask/' + askId, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({type:'multiple_choice', answer: choice})
+  });
+  markAskAnswered(askId, false, choice);
+}
+
+function answerCustom(askId) {
+  const answer = document.getElementById('ask-custom-' + askId)?.value || '';
+  if (!answer) return;
+  fetch('/api/ask/' + askId, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({type:'multiple_choice', answer})
+  });
+  markAskAnswered(askId, false, answer);
+}
+
+function markAskAnswered(askId, approved, answer) {
+  conversations.forEach(c => {
+    const m = c.messages?.find(m => m.id === askId);
+    if (m) {
+      m.answered = true;
+      m.approved = approved;
+      m.answer = answer || '';
+    }
+  });
+  const conv = getActiveConv();
+  if (conv) renderMessages(conv);
+}
+</script>
+</body>
+</html>

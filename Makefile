@@ -5,10 +5,11 @@ compile:
 	go build -o llmdevkit-config ./cmd/llmdevkit-config/
 	go build -o llmdevkit-setup ./cmd/llmdevkit-setup/
 	go build -o llmdevkit-acp ./cmd/llmdevkit-acp/
+	go build -o llmdevkit-server ./cmd/llmdevkit-server/
 	CGO_ENABLED=1 go build -o llmdevkit-indexer ./cmd/llmdevkit-indexer/
 
 clean:
-	rm -f llmdevkit-mcp llmdevkit-config llmdevkit-setup llmdevkit-indexer llmdevkit-acp
+	rm -f llmdevkit-mcp llmdevkit-config llmdevkit-setup llmdevkit-indexer llmdevkit-acp llmdevkit-server
 
 test:
 	go vet ./...

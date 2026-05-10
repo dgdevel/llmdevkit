@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -236,6 +239,10 @@ func (a *llmdevkitAgent) buildToolRegistry(ctx context.Context, agentCfg *agents
 			// Register agents_available and agent_invoke special tools
 			a.registerAgentTools(registry)
 
+		case "ask":
+			// Register ask tools that use side-channel to llmdevkit-server
+			a.registerAskTools(registry)
+
 		default:
 			// Look up in mcps config
 			if a.mcpCfg != nil {
@@ -415,6 +422,118 @@ func (a *llmdevkitAgent) registerMCPTools(ctx context.Context, registry *runner.
 		})
 	}
 	return nil
+}
+
+// registerAskTools registers ask_open_ended, ask_exec, ask_multiple_choice
+// These use a side-channel HTTP call to the llmdevkit-server UI.
+func (a *llmdevkitAgent) registerAskTools(registry *runner.ToolRegistry) {
+	sideURL := os.Getenv("LLMDEVKIT_SIDE_CHANNEL")
+
+	registry.Add(&runner.ToolDef{
+		Name:        "ask_open_ended",
+		Description: "Ask the user an open-ended question and wait for their response",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"question": map[string]any{"type": "string", "description": "The question to ask the user"},
+			},
+			"required": []string{"question"},
+		},
+		Call: func(ctx context.Context, args map[string]any) (string, error) {
+			question, _ := args["question"].(string)
+			if sideURL == "" {
+				return question, nil
+			}
+			return sideChannelCall(ctx, sideURL, map[string]any{
+				"type":     "ask_open_ended",
+				"question": question,
+			})
+		},
+	})
+
+	registry.Add(&runner.ToolDef{
+		Name:        "ask_exec",
+		Description: "Ask the user to authorize command execution. User can modify command, change timeout, approve or deny.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"cmdline": map[string]any{"type": "string", "description": "The command line to execute"},
+				"timeout": map[string]any{"type": "integer", "description": "Timeout in seconds", "default": 30},
+			},
+			"required": []string{"cmdline"},
+		},
+		Call: func(ctx context.Context, args map[string]any) (string, error) {
+			cmdline, _ := args["cmdline"].(string)
+			timeout := 30
+			if t, ok := args["timeout"].(float64); ok {
+				timeout = int(t)
+			}
+			if sideURL == "" {
+				return fmt.Sprintf("No side-channel: would execute: %s (timeout: %ds)", cmdline, timeout), nil
+			}
+			return sideChannelCall(ctx, sideURL, map[string]any{
+				"type":    "ask_exec",
+				"cmdline": cmdline,
+				"timeout": timeout,
+			})
+		},
+	})
+
+	registry.Add(&runner.ToolDef{
+		Name:        "ask_multiple_choice",
+		Description: "Ask the user a multiple choice question",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"question":        map[string]any{"type": "string", "description": "The question to ask"},
+				"choices":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "List of choices"},
+				"allow_open_ended": map[string]any{"type": "boolean", "description": "Whether to allow a custom text response", "default": false},
+			},
+			"required": []string{"question", "choices"},
+		},
+		Call: func(ctx context.Context, args map[string]any) (string, error) {
+			question, _ := args["question"].(string)
+			var choices []string
+			if c, ok := args["choices"].([]interface{}); ok {
+				for _, v := range c {
+					choices = append(choices, fmt.Sprint(v))
+				}
+			}
+			allowOpen := false
+			if a, ok := args["allow_open_ended"].(bool); ok {
+				allowOpen = a
+			}
+			if sideURL == "" {
+				return question, nil
+			}
+			return sideChannelCall(ctx, sideURL, map[string]any{
+				"type":             "ask_multiple_choice",
+				"question":         question,
+				"choices":          choices,
+				"allow_open_ended": allowOpen,
+			})
+		},
+	})
+}
+
+// sideChannelCall POSTs to the llmdevkit-server side-channel and waits for user response.
+func sideChannelCall(ctx context.Context, sideURL string, payload map[string]any) (string, error) {
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequestWithContext(ctx, "POST", sideURL, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("side-channel call: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("side-channel HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+	return string(respBody), nil
 }
 
 // registerAgentTools registers the agents_available and agent_invoke special tools.
