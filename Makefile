@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := compile
 
 compile:
-	go build -o llmdevkit-mcp .
+	go build -o llmdevkit-mcp ./cmd/llmdevkit-mcp/
 	go build -o llmdevkit-config ./cmd/llmdevkit-config/
 	go build -o llmdevkit-setup ./cmd/llmdevkit-setup/
 	go build -o llmdevkit-acp ./cmd/llmdevkit-acp/
