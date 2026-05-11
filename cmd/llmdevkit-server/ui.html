@@ -202,6 +202,8 @@ let setupResolve = null;
 let taskEntries = []; // [{id, content, status, priority}]
 let toolDefsCache = {}; // agentName -> [{name, description, parameters}]
 let tokenStats = {prompt_tokens:0, completion_tokens:0, total_tokens:0, llm_calls:0};
+let _renderScheduled = false;
+let _streamUpdateScheduled = false;
 
 // Init
 window.onload = async () => {
@@ -513,6 +515,36 @@ function scrollToBottom() {
   el.scrollTop = el.scrollHeight;
 }
 
+// Throttled render: coalesce rapid updates into a single rAF
+function scheduleRender(conv) {
+  if (_renderScheduled) return;
+  _renderScheduled = true;
+  requestAnimationFrame(() => {
+    _renderScheduled = false;
+    const c = conv || getActiveConv();
+    if (c) {
+      renderMessages(c);
+      scrollToBottom();
+    }
+  });
+}
+
+// Incremental update for streaming text: only update last bubble DOM
+function updateStreamingBubble(conv) {
+  const el = document.getElementById('messages');
+  const last = conv.messages[conv.messages.length - 1];
+  if (!last || (last.type !== 'llm' && last.type !== 'thinking')) return false;
+  const bubbles = el.querySelectorAll('.bubble-' + last.type);
+  const lastBubble = bubbles[bubbles.length - 1];
+  if (!lastBubble) return false;
+  const contentEl = lastBubble.querySelector('.bubble-content');
+  if (!contentEl) return false;
+  contentEl.innerHTML = md(last.content);
+  const briefEl = lastBubble.querySelector('.bubble-brief');
+  if (briefEl) briefEl.textContent = briefText(last.content);
+  return true;
+}
+
 function autoGrow(el) {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 200) + 'px';
@@ -636,8 +668,7 @@ function handleEvent(ev) {
     }
     renderConvList();
     if (activeConvId === ev.data?.id) {
-      const conv = getActiveConv();
-      if (conv) renderMessages(conv);
+      scheduleRender(getActiveConv());
     }
     return;
   }
@@ -678,8 +709,7 @@ function handleEvent(ev) {
       break;
   }
   if (conv.id === activeConvId) {
-    renderMessages(conv);
-    scrollToBottom();
+    scheduleRender(conv);
   }
 }
 
@@ -692,9 +722,21 @@ function handleSessionUpdate(conv, bubble) {
     const last = conv.messages[conv.messages.length - 1];
     if (last && last.type === bubble.type && last._merging) {
       last.content += bubble.content;
+      // Incremental DOM update: avoid full re-render during streaming
+      if (conv.id === activeConvId && updateStreamingBubble(conv)) {
+        if (!_streamUpdateScheduled) {
+          _streamUpdateScheduled = true;
+          requestAnimationFrame(() => {
+            _streamUpdateScheduled = false;
+            scrollToBottom();
+          });
+        }
+        return;
+      }
     } else {
       conv.messages.push({type: bubble.type, content: bubble.content, _merging: true});
     }
+    if (conv.id === activeConvId) scheduleRender(conv);
     return;
   }
 

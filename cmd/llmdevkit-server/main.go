@@ -512,6 +512,7 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 		"system_prompt": conv.SystemPrompt,
 		"tools":         conv.Tools,
 	})
+	s.appendJSONL(convID, "bubble", BubbleMessage{Type: "user", Content: req.Prompt})
 	s.broadcastSSE(convID, "state", map[string]bool{"running": true})
 	s.broadcastSSE("", "conversation_updated", conv)
 
@@ -550,8 +551,13 @@ func (s *Server) handleConvPrompt(w http.ResponseWriter, r *http.Request, convID
 		return
 	}
 
-	s.appendJSONL(convID, "prompt", map[string]string{"prompt": req.Prompt})
+	s.mu.Lock()
+	conv.Messages = append(conv.Messages, BubbleMessage{Type: "user", Content: req.Prompt})
+	s.mu.Unlock()
+
+	s.appendJSONL(convID, "bubble", BubbleMessage{Type: "user", Content: req.Prompt})
 	s.broadcastSSE(convID, "state", map[string]bool{"running": true})
+	s.broadcastSSE("", "conversation_updated", conv)
 
 	go s.runACPPrompt(convID, req.Prompt)
 
@@ -1260,7 +1266,13 @@ func (s *Server) loadConversations() error {
 				}
 
 			case "prompt":
-				// already handled via bubbles
+				var data struct {
+					Prompt string `json:"prompt"`
+				}
+				json.Unmarshal(line.Payload, &data)
+				if data.Prompt != "" {
+					conv.Messages = append(conv.Messages, BubbleMessage{Type: "user", Content: data.Prompt})
+				}
 
 			case "prompt_response":
 				// informational only

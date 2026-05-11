@@ -208,6 +208,12 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 	systemMsg := ChatMessage{Role: "system", Content: r.agent.SystemPrompt}
 	fullMessages := append([]ChatMessage{systemMsg}, messages...)
 	var stats TokenStats
+	// Emit final token stats once when the turn completes
+	defer func() {
+		if stats.LLMCalls > 0 && r.onTokenStats != nil {
+			r.onTokenStats(stats)
+		}
+	}()
 
 	for {
 		reqBody.Messages = fullMessages
@@ -227,9 +233,6 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 			stats.CompletionTokens += resp.Usage.CompletionTokens
 			stats.TotalTokens += resp.Usage.TotalTokens
 			stats.LLMCalls++
-			if r.onTokenStats != nil {
-				r.onTokenStats(stats)
-			}
 		}
 
 		if len(resp.Choices) == 0 {
