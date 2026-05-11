@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
@@ -12,14 +13,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"llmdevkit/internal/agents"
+	"llmdevkit/internal/debuglog"
 	"llmdevkit/internal/llms"
+	"llmdevkit/internal/mcps"
 
 	acp "github.com/ironpark/go-acp"
+	"github.com/mark3labs/mcp-go/client"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 //go:embed ui.html
@@ -42,15 +49,22 @@ type BubbleMessage struct {
 	Answer         string   `json:"answer,omitempty"`
 }
 
+type ToolDefInfo struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	Parameters  map[string]any `json:"parameters,omitempty"`
+}
+
 type Conversation struct {
 	ID           string          `json:"id"`
 	Agent        string          `json:"agent"`
 	SystemPrompt string          `json:"system_prompt,omitempty"`
 	Tools        []string        `json:"tools,omitempty"`
+	ToolDefs     []ToolDefInfo   `json:"tool_defs,omitempty"`
 	Title        string          `json:"title,omitempty"`
 	Messages     []BubbleMessage `json:"messages"`
 
-	ACPSessionID string `json:"-"`
+	ACPSessionID string `json:"acp_session_id,omitempty"`
 	Initialized  bool   `json:"-"`
 }
 
@@ -65,6 +79,8 @@ type Server struct {
 	rootDir  string
 	llmCfg   *llms.Config
 	agentCfg *agents.Config
+	mcpCfg   *mcps.Config
+	dlog     *debuglog.Logger
 	mu       sync.RWMutex
 	convs    map[string]*Conversation
 	convOrder []string
@@ -102,6 +118,10 @@ func main() {
 	rootDir, _ := os.Getwd()
 	rootDir, _ = filepath.Abs(rootDir)
 
+	debuglog.Init(rootDir)
+	dlog := debuglog.For("server")
+	dlog.Log("server starting, rootDir=%s", rootDir)
+
 	llmCfg, err := llms.LoadMergedConfig(rootDir)
 	if err != nil {
 		log.Fatalf("load llms config: %v", err)
@@ -112,10 +132,17 @@ func main() {
 		log.Fatalf("load agents config: %v", err)
 	}
 
+	mcpCfg, err := mcps.LoadMergedConfig(rootDir)
+	if err != nil {
+		log.Fatalf("load mcps config: %v", err)
+	}
+
 	srv := &Server{
 		rootDir:    rootDir,
 		llmCfg:     llmCfg,
 		agentCfg:   agentCfg,
+		mcpCfg:     mcpCfg,
+		dlog:       dlog,
 		convs:      make(map[string]*Conversation),
 		askPends:   make(map[string]chan *AskAnswer),
 		sseClients: make(map[chan SSEEvent]struct{}),
@@ -128,6 +155,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", srv.serveUI)
 	mux.HandleFunc("/api/agents", srv.handleAgents)
+	mux.HandleFunc("/api/tooldefs", srv.handleToolDefs)
 	mux.HandleFunc("/api/conversations", srv.handleConversations)
 	mux.HandleFunc("/api/conversations/", srv.handleConversationActions)
 	mux.HandleFunc("/api/ask/", srv.handleAskAnswer)
@@ -183,6 +211,126 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, list)
 }
 
+// ── API: Tool Definitions ───────────────────────────────────────────────────
+
+func (s *Server) handleToolDefs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	agentName := r.URL.Query().Get("agent")
+	if agentName == "" {
+		writeJSON(w, []ToolDefInfo{})
+		return
+	}
+	defs, err := s.resolveToolDefs(r.Context(), agentName)
+	if err != nil {
+		s.dlog.Log("handleToolDefs agent=%s error: %v", agentName, err)
+		writeJSON(w, []ToolDefInfo{})
+		return
+	}
+	writeJSON(w, defs)
+}
+
+func (s *Server) resolveToolDefs(ctx context.Context, agentName string) ([]ToolDefInfo, error) {
+	agentCfg, _ := s.agentCfg.Lookup(agentName)
+	if agentCfg == nil {
+		return nil, fmt.Errorf("agent %q not found", agentName)
+	}
+	var defs []ToolDefInfo
+	for _, token := range agentCfg.ToolNames() {
+		switch token {
+		case "devkit":
+			d, err := s.resolveMCPToolDefs(ctx, "llmdevkit-mcp", "")
+			if err != nil {
+				s.dlog.Log("resolveToolDefs devkit: %v", err)
+			} else {
+				defs = append(defs, d...)
+			}
+		case "agents":
+			defs = append(defs,
+				ToolDefInfo{Name: "agents_available", Description: "List available agents"},
+				ToolDefInfo{Name: "agent_invoke", Description: "Invoke a sub-agent by name with a prompt"},
+			)
+		case "ask":
+			defs = append(defs,
+				ToolDefInfo{Name: "ask_open_ended", Description: "Ask user an open-ended question", Parameters: map[string]any{"type": "object", "properties": map[string]any{"question": map[string]any{"type": "string", "description": "The question text"}}}},
+				ToolDefInfo{Name: "ask_exec", Description: "Ask user to execute a command", Parameters: map[string]any{"type": "object", "properties": map[string]any{"cmdline": map[string]any{"type": "string", "description": "Command line"}, "timeout": map[string]any{"type": "integer", "description": "Timeout in seconds"}}}},
+				ToolDefInfo{Name: "ask_multiple_choice", Description: "Ask user a multiple choice question"},
+			)
+		default:
+			if s.mcpCfg != nil {
+				scfg, ok := s.mcpCfg.MCPS[token]
+				if !ok {
+					continue
+				}
+				var execName string
+				if scfg.Stdio != "" {
+					execName = scfg.Stdio
+				}
+				d, err := s.resolveMCPToolDefs(ctx, execName, scfg.URL)
+				if err != nil {
+					s.dlog.Log("resolveToolDefs %s: %v", token, err)
+				} else {
+					defs = append(defs, d...)
+				}
+			}
+		}
+	}
+	return defs, nil
+}
+
+func (s *Server) resolveMCPToolDefs(ctx context.Context, stdioCmd string, url string) ([]ToolDefInfo, error) {
+	var c *client.Client
+	var err error
+	if stdioCmd != "" {
+		c, err = client.NewStdioMCPClient(stdioCmd, nil, s.rootDir)
+		if err != nil {
+			return nil, err
+		}
+	} else if url != "" {
+		c, err = client.NewStreamableHttpClient(url)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, fmt.Errorf("no transport")
+	}
+
+	initCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if _, err := c.Initialize(initCtx, mcp.InitializeRequest{
+		Params: mcp.InitializeParams{
+			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
+			ClientInfo: mcp.Implementation{
+				Name:    "llmdevkit-server",
+				Version: "0.1.0",
+			},
+		},
+	}); err != nil {
+		return nil, err
+	}
+
+	toolsResult, err := c.ListTools(ctx, mcp.ListToolsRequest{})
+	if err != nil {
+		return nil, err
+	}
+
+	var defs []ToolDefInfo
+	for _, t := range toolsResult.Tools {
+		schema := map[string]any{}
+		if b, jerr := json.Marshal(t.InputSchema); jerr == nil {
+			json.Unmarshal(b, &schema)
+		}
+		defs = append(defs, ToolDefInfo{
+			Name:        t.Name,
+			Description: t.Description,
+			Parameters:  schema,
+		})
+	}
+	return defs, nil
+}
+
 // ── API: Conversations ──────────────────────────────────────────────────────
 
 func (s *Server) handleConversations(w http.ResponseWriter, r *http.Request) {
@@ -213,11 +361,13 @@ func (s *Server) handleConversations(w http.ResponseWriter, r *http.Request) {
 			SystemPrompt: req.SystemPrompt,
 			Messages:     []BubbleMessage{},
 		}
+		s.dlog.Log("POST /api/conversations agent=%s conv_id=%s", req.Agent, conv.ID)
 		s.mu.Lock()
 		s.convs[conv.ID] = conv
 		s.convOrder = append([]string{conv.ID}, s.convOrder...)
 		s.mu.Unlock()
 		s.appendJSONL(conv.ID, "conversation_created", conv)
+		s.broadcastSSE("", "conversation_created", conv)
 		writeJSON(w, conv)
 
 	default:
@@ -253,6 +403,7 @@ func (s *Server) handleConversationActions(w http.ResponseWriter, r *http.Reques
 			s.convOrder = newOrder
 			s.mu.Unlock()
 			os.Remove(s.convFile(convID))
+			s.broadcastSSE("", "conversation_deleted", map[string]string{"id": convID})
 			w.WriteHeader(204)
 		default:
 			http.Error(w, "method not allowed", 405)
@@ -287,18 +438,23 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 		return
 	}
 
+	s.dlog.Log("INIT conv=%s prompt=%q", convID, req.Prompt)
+
 	s.mu.Lock()
 	conv, ok := s.convs[convID]
 	s.mu.Unlock()
 	if !ok {
+		s.dlog.Log("INIT conv=%s NOT FOUND", convID)
 		http.Error(w, "conversation not found", 404)
 		return
 	}
 
 	if err := s.ensureACPConnection(); err != nil {
+		s.dlog.Log("INIT ensureACPConnection FAILED: %v", err)
 		writeJSONError(w, fmt.Sprintf("ACP init: %v", err))
 		return
 	}
+	s.dlog.Log("INIT ACP connected, creating session...")
 
 	s.acpMu.Lock()
 	sessResp, err := s.acpConn.NewSession(r.Context(), &acp.NewSessionRequest{
@@ -306,12 +462,14 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 	})
 	s.acpMu.Unlock()
 	if err != nil {
+		s.dlog.Log("INIT NewSession FAILED: %v", err)
 		writeJSONError(w, fmt.Sprintf("new session: %v", err))
 		return
 	}
 
 	conv.ACPSessionID = string(sessResp.SessionID)
 	conv.Initialized = true
+	s.dlog.Log("INIT session created: acp_session=%s agent=%s", conv.ACPSessionID, conv.Agent)
 
 	agentCfg, _ := s.agentCfg.Lookup(conv.Agent)
 	if agentCfg != nil {
@@ -328,12 +486,28 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 		Content: req.Prompt,
 	})
 
+	// Auto-title from first prompt
+	if conv.Title == "" && len(req.Prompt) > 0 {
+		maxLen := 40
+		if len(req.Prompt) < maxLen {
+			maxLen = len(req.Prompt)
+		}
+		conv.Title = strings.TrimSpace(req.Prompt[:maxLen])
+		if len(req.Prompt) > maxLen {
+			conv.Title += "…"
+		}
+	}
+
 	s.appendJSONL(convID, "init", map[string]interface{}{
-		"agent":       conv.Agent,
-		"acp_session": conv.ACPSessionID,
+		"agent":        conv.Agent,
+		"acp_session":  conv.ACPSessionID,
+		"system_prompt": conv.SystemPrompt,
+		"tools":         conv.Tools,
 	})
 	s.broadcastSSE(convID, "state", map[string]bool{"running": true})
+	s.broadcastSSE("", "conversation_updated", conv)
 
+	s.dlog.Log("INIT starting runACPPrompt goroutine for conv=%s", convID)
 	go s.runACPPrompt(convID, req.Prompt)
 
 	writeJSON(w, map[string]interface{}{
@@ -406,6 +580,7 @@ func (s *Server) ensureACPConnection() error {
 	defer s.acpMu.Unlock()
 
 	if s.acpConnected {
+		s.dlog.Log("ensureACPConnection already connected")
 		return nil
 	}
 
@@ -414,6 +589,7 @@ func (s *Server) ensureACPConnection() error {
 		return fmt.Errorf("llmdevkit-acp not found in PATH: %w", err)
 	}
 
+	s.dlog.Log("ensureACPConnection spawning llmdevkit-acp at %s", binPath)
 	cmd := exec.Command(binPath)
 	cmd.Dir = s.rootDir
 	cmd.Stderr = os.Stderr
@@ -435,33 +611,107 @@ func (s *Server) ensureACPConnection() error {
 	s.acpCmd = cmd
 
 
+	// Perform JSON-RPC initialize directly over the pipes before
+	// handing them to the library.  This avoids the race where
+	// Connection.SendRequest nil-derefs c.ctx because conn.Start()
+	// (which sets c.ctx) runs in a goroutine.
+	initReq := struct {
+		Jsonrpc string `json:"jsonrpc"`
+		ID      int64  `json:"id"`
+		Method  string `json:"method"`
+		Params  any    `json:"params"`
+	}{
+		Jsonrpc: "2.0",
+		ID:      1,
+		Method:  "initialize",
+		Params: map[string]any{
+			"clientCapabilities": map[string]any{},
+			"clientInfo": map[string]any{
+				"name":    "llmdevkit-server",
+				"version": "0.1.0",
+			},
+			"protocolVersion": float64(1),
+		},
+	}
+	initReqBytes, _ := json.Marshal(initReq)
+	s.dlog.Log("ensureACPConnection sending raw initialize RPC...")
+	if _, err := fmt.Fprintf(stdin, "%s\n", initReqBytes); err != nil {
+		return fmt.Errorf("write initialize request: %w", err)
+	}
+
+	// Read the JSON-RPC response line from stdout byte-by-byte
+	// to avoid buffering data that the library's readLoop needs.
+	var respBuf bytes.Buffer
+	buf := make([]byte, 1)
+	for {
+		if _, err := io.ReadFull(stdout, buf); err != nil {
+			return fmt.Errorf("read initialize response: %w", err)
+		}
+		if buf[0] == '\n' {
+			break
+		}
+		respBuf.Write(buf)
+	}
+	initRespBytes := respBuf.Bytes()
+	s.dlog.Log("ensureACPConnection initialize response: %s", string(initRespBytes))
+
+	var initResp struct {
+		Jsonrpc string          `json:"jsonrpc"`
+		ID      int64           `json:"id"`
+		Result  json.RawMessage `json:"result,omitempty"`
+		Error   *struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error,omitempty"`
+	}
+	if err := json.Unmarshal(initRespBytes, &initResp); err != nil {
+		return fmt.Errorf("parse initialize response: %w", err)
+	}
+	if initResp.Error != nil {
+		return fmt.Errorf("initialize error: %d %s", initResp.Error.Code, initResp.Error.Message)
+	}
+
+	// Now hand the pipes to the library.  Start() will set c.ctx
+	// internally, and all subsequent RPCs (NewSession, Prompt, etc.)
+	// will work correctly.
 	clientImpl := &acpClientHandler{server: s}
 	conn := acp.NewClientSideConnection(clientImpl, stdin, stdout)
-
-	ctx := context.Background()
-	if err := conn.Start(ctx); err != nil {
-		return fmt.Errorf("start ACP connection: %w", err)
-	}
-
 	s.acpConn = conn
 
-	_, err = conn.Initialize(ctx, &acp.InitializeRequest{
-		ClientCapabilities: &acp.ClientCapabilities{},
-		ClientInfo: &acp.Implementation{
-			Name:    "llmdevkit-server",
-			Version: "0.1.0",
-		},
-		ProtocolVersion: 1,
-	})
-	if err != nil {
-		return fmt.Errorf("ACP initialize: %w", err)
-	}
+	// Pre-set the inner Connection.ctx via reflect+unsafe so that
+	// SendRequest won't nil-dereference c.ctx if called before
+	// conn.Start()'s goroutine has a chance to run.  Start() will
+	// overwrite this with a derived context.
+	setContextConn(conn, context.Background())
+
+	ctx := context.Background()
+	go func() {
+		if err := conn.Start(ctx); err != nil {
+			s.dlog.Log("ACP connection readLoop exited: %v", err)
+		}
+	}()
 
 	s.acpConnected = true
+	s.dlog.Log("ensureACPConnection ACP connected and initialized")
 	return nil
 }
 
 // ── ACP Client implementation ───────────────────────────────────────────────
+
+// setContextConn pre-sets the ctx field on the inner *acp.Connection
+// so that SendRequest won't nil-dereference before conn.Start() runs.
+// conn.Start() will overwrite ctx with a derived context.
+func setContextConn(csc *acp.ClientSideConnection, ctx context.Context) {
+	// Walk: ClientSideConnection.conn (*Connection) -> Connection.ctx
+	cscVal := reflect.ValueOf(csc).Elem()
+	connField := cscVal.FieldByName("conn") // unexported *Connection
+	connVal := connField.Elem()             // unexported Connection value
+	ctxField := connVal.FieldByName("ctx")  // unexported context.Context
+
+	// Write to unexported field via unsafe
+	ctxPtr := unsafe.Pointer(ctxField.UnsafeAddr())
+	*(*context.Context)(ctxPtr) = ctx
+}
 
 type acpClientHandler struct {
 	server *Server
@@ -469,6 +719,7 @@ type acpClientHandler struct {
 
 func (c *acpClientHandler) SessionUpdate(ctx context.Context, params *acp.SessionNotification) error {
 	sid := string(params.SessionID)
+	c.server.dlog.Log("SessionUpdate callback sid=%s", sid)
 	c.server.mu.RLock()
 	var convID string
 	for _, conv := range c.server.convs {
@@ -480,6 +731,7 @@ func (c *acpClientHandler) SessionUpdate(ctx context.Context, params *acp.Sessio
 	c.server.mu.RUnlock()
 
 	if convID == "" {
+		c.server.dlog.Log("SessionUpdate callback sid=%s no matching conv (convs=%d)", sid, len(c.server.convs))
 		return nil
 	}
 
@@ -489,57 +741,40 @@ func (c *acpClientHandler) SessionUpdate(ctx context.Context, params *acp.Sessio
 
 func (c *acpClientHandler) handleSessionUpdate(convID string, u acp.SessionUpdate) {
 	raw, _ := json.Marshal(u)
-	var m map[string]json.RawMessage
-	json.Unmarshal(raw, &m)
-
-	if chunk, ok := m["agentMessageChunk"]; ok {
-		var data struct {
-			Content struct {
-				Text string `json:"text"`
-			} `json:"content"`
-		}
-		json.Unmarshal(chunk, &data)
-		if data.Content.Text != "" {
-			c.server.addBubble(convID, BubbleMessage{Type: "llm", Content: data.Content.Text})
+	c.server.dlog.Log("SessionUpdate conv=%s raw=%s", convID, string(raw))
+	if chunk, ok := u.AsAgentMessageChunk(); ok {
+		if txt, ok2 := chunk.Content.AsText(); ok2 && txt.Text != "" {
+			c.server.addBubble(convID, BubbleMessage{Type: "llm", Content: txt.Text})
 		}
 	}
-	if chunk, ok := m["agentThoughtChunk"]; ok {
-		var data struct {
-			Content struct {
-				Text string `json:"text"`
-			} `json:"content"`
-		}
-		json.Unmarshal(chunk, &data)
-		if data.Content.Text != "" {
-			c.server.addBubble(convID, BubbleMessage{Type: "thinking", Content: data.Content.Text})
+	if chunk, ok := u.AsAgentThoughtChunk(); ok {
+		if txt, ok2 := chunk.Content.AsText(); ok2 && txt.Text != "" {
+			c.server.addBubble(convID, BubbleMessage{Type: "thinking", Content: txt.Text})
 		}
 	}
-	if tc, ok := m["toolCall"]; ok {
-		var data struct {
-			Title string `json:"title"`
-		}
-		json.Unmarshal(tc, &data)
-		c.server.addBubble(convID, BubbleMessage{Type: "tool_request", Name: data.Title, Content: string(tc)})
+	if tc, ok := u.AsToolCall(); ok {
+		raw, _ := json.Marshal(tc)
+		c.server.addBubble(convID, BubbleMessage{Type: "tool_request", Name: tc.Title, Content: string(raw)})
 	}
-	if tcu, ok := m["toolCallUpdate"]; ok {
-		var data struct {
-			ToolCallID string `json:"toolCallId"`
-			Status     string `json:"status"`
-			Content    []struct {
-				Text string `json:"text"`
-			} `json:"content"`
+	if tcu, ok := u.AsToolCallUpdate(); ok {
+		status := ""
+		if tcu.Status != nil {
+			status = string(*tcu.Status)
 		}
-		json.Unmarshal(tcu, &data)
-		if data.Status == "completed" || data.Status == "failed" {
+		if status == "completed" || status == "failed" {
 			var texts []string
-			for _, ct := range data.Content {
-				texts = append(texts, ct.Text)
+			for _, ct := range tcu.Content {
+				if cc, ok2 := ct.AsContent(); ok2 {
+					if txt, ok3 := cc.Content.Content.AsText(); ok3 && txt.Text != "" {
+						texts = append(texts, txt.Text)
+					}
+				}
 			}
 			content := strings.Join(texts, "\n")
 			if content == "" {
-				content = data.Status
+				content = status
 			}
-			c.server.addBubble(convID, BubbleMessage{Type: "tool_response", Name: data.ToolCallID, Content: content})
+			c.server.addBubble(convID, BubbleMessage{Type: "tool_response", Name: string(tcu.ToolCallID), Content: content})
 		}
 	}
 }
@@ -586,8 +821,11 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 	conv, ok := s.convs[convID]
 	s.mu.RUnlock()
 	if !ok {
+		s.dlog.Log("runACPPrompt conv=%s NOT FOUND", convID)
 		return
 	}
+
+	s.dlog.Log("runACPPrompt conv=%s acp_session=%s prompt_len=%d", convID, conv.ACPSessionID, len(promptText))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
@@ -598,12 +836,16 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 		Prompt:    []acp.ContentBlock{contentBlock},
 	}
 
+	s.dlog.Log("runACPPrompt conv=%s sending Prompt RPC...", convID)
 	s.acpMu.Lock()
 	resp, err := s.acpConn.Prompt(ctx, promptReq)
 	s.acpMu.Unlock()
 
 	if err != nil {
+		s.dlog.Log("runACPPrompt conv=%s Prompt RPC ERROR: %v", convID, err)
 		s.addBubble(convID, BubbleMessage{Type: "error", Content: fmt.Sprintf("ACP prompt error: %v", err)})
+	} else {
+		s.dlog.Log("runACPPrompt conv=%s Prompt RPC done, stop_reason=%s", convID, resp.StopReason)
 	}
 
 	if resp != nil {
@@ -618,6 +860,7 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 // ── Bubble management ───────────────────────────────────────────────────────
 
 func (s *Server) addBubble(convID string, b BubbleMessage) {
+	s.dlog.Log("addBubble conv=%s type=%s content_len=%d", convID, b.Type, len(b.Content))
 	s.mu.Lock()
 	conv, ok := s.convs[convID]
 	if !ok {
@@ -666,6 +909,7 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 	if t, ok := payload["type"]; ok {
 		json.Unmarshal(t, &askType)
 	}
+	s.dlog.Log("handleSideChannel askType=%s", askType)
 
 	// Find the active conversation (last one with running state)
 	s.mu.RLock()
@@ -839,6 +1083,7 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) broadcastSSE(convID, event string, data interface{}) {
 	raw, _ := json.Marshal(data)
+	s.dlog.Log("broadcastSSE conv=%s event=%s data_len=%d clients=%d", convID, event, len(raw), len(s.sseClients))
 	ev := SSEEvent{
 		ConversationID: convID,
 		Event:          event,
@@ -931,16 +1176,27 @@ func (s *Server) loadConversations() error {
 				if c.SystemPrompt != "" {
 					conv.SystemPrompt = c.SystemPrompt
 				}
+				if c.Title != "" {
+					conv.Title = c.Title
+				}
 
 			case "init":
 				var data struct {
-					Agent      string `json:"agent"`
-					ACPSession string `json:"acp_session"`
+					Agent        string   `json:"agent"`
+					ACPSession   string   `json:"acp_session"`
+					SystemPrompt string   `json:"system_prompt"`
+					Tools        []string `json:"tools"`
 				}
 				json.Unmarshal(line.Payload, &data)
 				conv.Agent = data.Agent
 				conv.ACPSessionID = data.ACPSession
 				conv.Initialized = true
+				if data.SystemPrompt != "" {
+					conv.SystemPrompt = data.SystemPrompt
+				}
+				if data.Tools != nil {
+					conv.Tools = data.Tools
+				}
 
 			case "bubble":
 				var b BubbleMessage

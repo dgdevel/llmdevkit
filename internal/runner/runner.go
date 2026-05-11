@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"llmdevkit/internal/agents"
+	"llmdevkit/internal/debuglog"
 	"llmdevkit/internal/llms"
 )
 
@@ -67,9 +68,18 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args json.RawM
 	var parsed map[string]any
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &parsed); err != nil {
+			// Some LLMs return tool args as a JSON-encoded string instead of
+			// a JSON object (double-encoded). Unwrap one layer and retry.
+			var inner string
+			if jsonErr := json.Unmarshal(args, &inner); jsonErr == nil {
+				if unmarshalErr := json.Unmarshal([]byte(inner), &parsed); unmarshalErr == nil {
+					goto done
+				}
+			}
 			return "", fmt.Errorf("parse tool args: %w", err)
 		}
 	}
+done:
 	return t.Call(ctx, parsed)
 }
 
@@ -152,6 +162,8 @@ type chatResponse struct {
 // RunPrompt executes a full prompt turn with the agent.
 // promptText is the user's message. userPrompt is the original raw prompt (for %p substitution).
 func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userPrompt string) (string, error) {
+	dlog := debuglog.For("runner")
+	dlog.Log("RunPrompt msg_count=%d user_prompt_len=%d", len(messages), len(userPrompt))
 	// Execute on_conversation_begin hooks (only on first message)
 	if len(messages) <= 1 {
 		if err := r.executeHooks(ctx, agents.HookConversationBegin, userPrompt); err != nil {
@@ -196,6 +208,8 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 
 		choice := resp.Choices[0]
 		assistantMsg := choice.Message
+
+		dlog.Log("LLM response content_len=%d tool_calls=%d finish=%s", len(assistantMsg.Content), len(assistantMsg.ToolCalls), choice.FinishReason)
 
 		// Stream text
 		if assistantMsg.Content != "" && r.onText != nil {
@@ -246,12 +260,17 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 }
 
 func (r *Runner) callLLM(ctx context.Context, req chatRequest) (*chatResponse, error) {
+	dlog := debuglog.For("runner")
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", strings.TrimRight(r.llm.APIBase, "/")+"/chat/completions", strings.NewReader(string(body)))
+	url := strings.TrimRight(r.llm.APIBase, "/") + "/chat/completions"
+	dlog.Log("callLLM POST %s model=%s msg_count=%d", url, req.Model, len(req.Messages))
+	dlog.ReqRes("REQUEST", string(body))
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(string(body)))
 	if err != nil {
 		return nil, err
 	}
@@ -273,6 +292,9 @@ func (r *Runner) callLLM(ctx context.Context, req chatRequest) (*chatResponse, e
 	if err != nil {
 		return nil, fmt.Errorf("read LLM response: %w", err)
 	}
+
+	dlog.Log("callLLM response HTTP %d len=%d", resp.StatusCode, len(respBody))
+	dlog.ReqRes("RESPONSE", string(respBody))
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("LLM HTTP %d: %s", resp.StatusCode, string(respBody))

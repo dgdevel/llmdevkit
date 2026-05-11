@@ -53,6 +53,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .bubble-system{background:var(--surface2);color:var(--text2);align-self:center;font-style:italic;font-size:13px;max-width:95%}
 .bubble-tools{background:var(--surface2);color:var(--teal);align-self:center;max-width:95%;font-size:13px}
 .bubble-tools .tool-box{display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;margin:2px;font-size:12px}
+.bubble-tools .tool-entry{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px 10px;margin:4px 0}
+.bubble-tools .tool-name{font-weight:600;color:var(--teal);font-family:monospace;font-size:12px}
+.bubble-tools .tool-desc{color:var(--text2);font-size:12px;margin:2px 0}
+.bubble-tools .tool-args{margin-top:3px}
+.bubble-tools .tool-arg{display:inline-block;background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin:1px;font-size:11px;font-family:monospace;color:var(--peach)}
 .bubble-user{background:#3b3b5c;align-self:flex-end;border-bottom-right-radius:2px}
 .bubble-llm{background:var(--surface2);align-self:flex-start;border-bottom-left-radius:2px}
 .bubble-thinking{background:transparent;border:1px dashed var(--border);color:var(--text2);align-self:flex-start;font-style:italic;font-size:13px}
@@ -66,6 +71,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .bubble-thinking .bubble-label{color:var(--text2)}
 .bubble-tool-req .bubble-label{color:var(--yellow)}
 .bubble-tool-resp .bubble-label{color:var(--teal)}
+/* Collapsed bubbles */
+.bubble.collapsed{cursor:pointer}
+.bubble.collapsed .bubble-content{display:none}
+.bubble.collapsed .bubble-brief{display:block}
+.bubble .bubble-brief{display:none;color:var(--text2);font-size:12px;font-style:normal;font-weight:400;text-transform:none;letter-spacing:0;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.bubble:not(.collapsed){cursor:default}
 /* Ask tool panels */
 .ask-panel{background:var(--surface2);border:2px solid var(--accent);border-radius:8px;padding:14px;margin:8px 0;max-width:90%;align-self:center}
 .ask-panel .ask-title{font-weight:700;color:var(--accent);margin-bottom:8px;font-size:14px}
@@ -101,6 +112,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .modal .btn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 .modal button{padding:8px 20px;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:13px}
 .modal .btn-primary{background:var(--accent);color:var(--bg);font-weight:600;border-color:var(--accent)}
+/* Task list */
+.task-list{padding:8px 12px;border-top:1px solid var(--border);max-height:200px;overflow-y:auto;flex-shrink:0}
+.task-list h3{font-size:11px;text-transform:uppercase;color:var(--text2);margin-bottom:6px;letter-spacing:0.5px}
+.task-item{font-size:12px;padding:3px 0;display:flex;align-items:baseline;gap:4px;color:var(--text2)}
+.task-item .task-icon{flex-shrink:0;width:14px;text-align:center}
+.task-item .task-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-item.pending .task-icon{color:var(--text2)}
+.task-item.in_progress .task-icon{color:var(--yellow)}
+.task-item.in_progress .task-text{color:var(--text)}
+.task-item.completed .task-icon{color:var(--green)}
+.task-item.failed .task-icon{color:var(--red)}
 </style>
 </head>
 <body>
@@ -124,6 +146,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
     </div>
     <div class="conv-list" id="convList"></div>
     <div class="new-conv-btn" onclick="newConversation()">+ New Conversation</div>
+    <div class="task-list" id="taskList" style="display:none">
+      <h3>Tasks</h3>
+      <div id="taskItems"></div>
+    </div>
   </div>
   <!-- Main pane -->
   <div class="main">
@@ -158,6 +184,8 @@ let activeConvId = null;
 let running = false;
 let pendingAsk = null; // {id, type, params, resolve, reject}
 let setupResolve = null;
+let taskEntries = []; // [{id, content, status, priority}]
+let toolDefsCache = {}; // agentName -> [{name, description, parameters}]
 
 // Init
 window.onload = async () => {
@@ -207,6 +235,7 @@ async function selectConversation(id) {
   const conv = conversations.find(c => c.id === id);
   if (conv) {
     document.getElementById('agentSelect').value = conv.agent || agents[0]?.name || '';
+    if (conv.agent) await loadToolDefs(conv.agent);
     renderMessages(conv);
     updateState(conv);
   }
@@ -257,6 +286,16 @@ function onAgentChange() {
   // Just update sidebar display; actual agent used at conversation level
 }
 
+async function loadToolDefs(agentName) {
+  if (toolDefsCache[agentName]) return toolDefsCache[agentName];
+  try {
+    const r = await fetch('/api/tooldefs?agent=' + encodeURIComponent(agentName));
+    const defs = await r.json();
+    toolDefsCache[agentName] = defs;
+    return defs;
+  } catch(e) { return []; }
+}
+
 function getActiveConv() {
   return conversations.find(c => c.id === activeConvId);
 }
@@ -294,12 +333,31 @@ function renderMessages(conv) {
   if (!conv) return;
   // System prompt bubble
   if (conv.system_prompt) {
-    el.innerHTML += bubbleHTML('system', 'System Prompt', conv.system_prompt);
+    const spBrief = briefText(conv.system_prompt);
+    el.innerHTML += bubbleHTML('system', 'System Prompt', md(conv.system_prompt), true, true, spBrief);
   }
-  // Tools list bubble
-  if (conv.tools && conv.tools.length > 0) {
+  // Tools list bubble with individual tool defs
+  const defs = toolDefsCache[conv.agent] || [];
+  if (defs.length > 0) {
+    let toolsHTML = defs.map(t => {
+      let desc = t.description ? `<div class="tool-desc">${esc(t.description)}</div>` : '';
+      let args = '';
+      if (t.parameters && t.parameters.properties) {
+        const props = t.parameters.properties;
+        const required = t.parameters.required || [];
+        args = Object.entries(props).map(([name, schema]) => {
+          const req = required.includes(name) ? ' *' : '';
+          const typ = schema.type || 'any';
+          const d = schema.description ? ` — ${esc(schema.description)}` : '';
+          return `<span class="tool-arg">${esc(name)}:${typ}${req}${d}</span>`;
+        }).join(' ');
+      }
+      return `<div class="tool-entry"><span class="tool-name">${esc(t.name)}</span>${desc}<div class="tool-args">${args}</div></div>`;
+    }).join('');
+    el.innerHTML += bubbleHTML('tools', `Available Tools (${defs.length})`, toolsHTML, true, true, `${defs.length} tools`);
+  } else if (conv.tools && conv.tools.length > 0) {
     const toolsHTML = conv.tools.map(t => `<span class="tool-box">${esc(t)}</span>`).join(' ');
-    el.innerHTML += bubbleHTML('tools', 'Available Tools', toolsHTML, true);
+    el.innerHTML += bubbleHTML('tools', 'Available Tools', toolsHTML, true, true, conv.tools.join(', '));
   }
   // Messages
   (conv.messages || []).forEach(m => {
@@ -310,22 +368,51 @@ function renderMessages(conv) {
 
 function renderBubble(m) {
   switch(m.type) {
-    case 'user': return bubbleHTML('user', 'You', md(m.content));
-    case 'llm': return bubbleHTML('llm', 'Assistant', md(m.content));
-    case 'thinking': return bubbleHTML('thinking', 'Thinking', md(m.content));
-    case 'tool_request': return bubbleHTML('tool-req', `Tool: ${esc(m.name)}`, `<pre>${esc(m.content)}</pre>`, true);
-    case 'tool_response': return bubbleHTML('tool-resp', `Result: ${esc(m.name)}`, `<pre>${esc(m.content)}</pre>`, true);
+    case 'user': return bubbleHTML('user', 'You', md(m.content), false, false);
+    case 'llm': return bubbleHTML('llm', 'Assistant', md(m.content), false, false);
+    case 'thinking': return bubbleHTML('thinking', 'Thinking', md(m.content), false, true, briefText(m.content));
+    case 'tool_request': return bubbleHTML('tool-req', `Tool: ${esc(m.name)}`, `<pre>${esc(m.content)}</pre>`, true, true, briefToolReq(m));
+    case 'tool_response': return bubbleHTML('tool-resp', `Result: ${esc(m.name)}`, `<pre>${esc(m.content)}</pre>`, true, true, briefText(m.content));
     case 'ask_open_ended': return renderAskOpenEnded(m);
     case 'ask_exec': return renderAskExec(m);
     case 'ask_multiple_choice': return renderAskMultipleChoice(m);
-    case 'error': return bubbleHTML('error', 'Error', esc(m.content));
-    default: return bubbleHTML('system', m.type, esc(m.content||''));
+    case 'error': return bubbleHTML('error', 'Error', esc(m.content), false, true, briefText(m.content));
+    default: return bubbleHTML('system', m.type, esc(m.content||''), false, true, briefText(m.content));
   }
 }
 
-function bubbleHTML(cls, label, content, raw) {
-  return `<div class="bubble bubble-${cls}">
-    <div class="bubble-label">${label}</div>
+function briefText(s) {
+  if (!s) return '';
+  const line = String(s).split('\n')[0].replace(/\r/g, '');
+  return esc(line.length > 100 ? line.slice(0, 100) + '…' : line);
+}
+
+function briefToolReq(m) {
+  try {
+    const obj = JSON.parse(m.content);
+    const name = obj.title || m.name || '';
+    let args = '';
+    if (obj.arguments && typeof obj.arguments === 'object') {
+      args = Object.entries(obj.arguments).map(([k,v]) => `${esc(k)}: ${esc(String(v))}`).join(' | ');
+    } else if (obj.input && typeof obj.input === 'object') {
+      args = Object.entries(obj.input).map(([k,v]) => `${esc(k)}: ${esc(String(v))}`).join(' | ');
+    } else if (obj.input_schema && obj.input_schema.properties) {
+      args = Object.keys(obj.input_schema.properties).map(k => esc(k)).join(', ');
+    } else if (!args && m.content) {
+      const fallback = m.content.split('\n')[0];
+      return esc(fallback.length > 100 ? fallback.slice(0,100)+'…' : fallback);
+    }
+    return esc(name) + (args ? ' | ' + args : '');
+  } catch(e) {
+    return briefText(m.content);
+  }
+}
+
+function bubbleHTML(cls, label, content, raw, collapsed, brief) {
+  const col = collapsed ? ' collapsed' : '';
+  const briefLine = brief ? `<div class="bubble-brief">${brief}</div>` : '';
+  return `<div class="bubble bubble-${cls}${col}" onclick="this.classList.toggle('collapsed')">
+    <div class="bubble-label">${label}${briefLine}</div>
     <div class="bubble-content">${raw ? content : content}</div>
   </div>`;
 }
@@ -385,6 +472,10 @@ async function sendPrompt() {
     // Update in list
     const idx = conversations.findIndex(c => c.id === conv.id);
     if (idx >= 0) conversations[idx] = conv;
+    running = true;
+    taskEntries = [];
+    renderTaskList();
+    if (conv.agent) await loadToolDefs(conv.agent);
     renderMessages(conv);
     updateState(conv);
     return;
@@ -394,6 +485,8 @@ async function sendPrompt() {
   conv.messages.push({type:'user', content: text});
   renderMessages(conv);
   running = true;
+  taskEntries = [];
+  renderTaskList();
   updateState(conv);
 
   try {
@@ -420,6 +513,8 @@ async function cancelSession() {
   if (!conv) return;
   await fetch('/api/conversations/' + conv.id + '/cancel', {method:'POST'});
   running = false;
+  taskEntries = taskEntries.map(t => t.status === 'in_progress' ? {...t, status: 'completed'} : t);
+  renderTaskList();
   updateState(conv);
 }
 
@@ -436,6 +531,36 @@ function connectSSE() {
 }
 
 function handleEvent(ev) {
+  // Global events (no conversation_id)
+  if (ev.event === 'conversation_created') {
+    if (!conversations.find(c => c.id === ev.data?.id)) {
+      conversations.unshift(ev.data);
+      renderConvList();
+    }
+    return;
+  }
+  if (ev.event === 'conversation_deleted') {
+    conversations = conversations.filter(c => c.id !== ev.data?.id);
+    if (activeConvId === ev.data?.id) {
+      activeConvId = conversations[0]?.id || null;
+    }
+    renderConvList();
+    if (activeConvId) selectConversation(activeConvId);
+    return;
+  }
+  if (ev.event === 'conversation_updated') {
+    const idx = conversations.findIndex(c => c.id === ev.data?.id);
+    if (idx >= 0) {
+      conversations[idx] = ev.data;
+    }
+    renderConvList();
+    if (activeConvId === ev.data?.id) {
+      const conv = getActiveConv();
+      if (conv) renderMessages(conv);
+    }
+    return;
+  }
+
   const conv = conversations.find(c => c.id === ev.conversation_id);
   if (!conv) return;
   switch(ev.event) {
@@ -453,6 +578,10 @@ function handleEvent(ev) {
       break;
     case 'state':
       running = ev.data?.running || false;
+      if (ev.data && !ev.data.running) {
+        taskEntries = taskEntries.map(t => t.status === 'in_progress' ? {...t, status: 'completed'} : t);
+        renderTaskList();
+      }
       updateState(conv);
       break;
   }
@@ -462,38 +591,70 @@ function handleEvent(ev) {
   }
 }
 
-function handleSessionUpdate(conv, update) {
-  // update is a SessionUpdate from ACP
-  // We accumulate into conv.messages
-  const u = update;
-  if (u.agentMessageChunk) {
-    appendOrMerge(conv, 'llm', u.agentMessageChunk.content);
-  } else if (u.agentThoughtChunk) {
-    appendOrMerge(conv, 'thinking', u.agentThoughtChunk.content);
-  } else if (u.toolCall) {
-    conv.messages.push({type:'tool_request', name: u.toolCall.title, content: JSON.stringify(u.toolCall)});
-  } else if (u.toolCallUpdate) {
-    // Append tool result
-    const tc = u.toolCallUpdate;
-    if (tc.status === 'completed' && tc.content) {
-      let text = '';
-      tc.content.forEach(c => { if(c.text) text += c.text; });
-      conv.messages.push({type:'tool_response', name: tc.toolCallId, content: text});
+function handleSessionUpdate(conv, bubble) {
+  // bubble is a BubbleMessage from the server
+  if (!bubble || !bubble.type) return;
+
+  // Merge streaming text bubbles
+  if (bubble.type === 'llm' || bubble.type === 'thinking') {
+    const last = conv.messages[conv.messages.length - 1];
+    if (last && last.type === bubble.type && last._merging) {
+      last.content += bubble.content;
+    } else {
+      conv.messages.push({type: bubble.type, content: bubble.content, _merging: true});
     }
-  } else if (u.userMessageChunk) {
-    // User echo, ignore
+    return;
   }
+
+  // Tool calls — track as tasks
+  if (bubble.type === 'tool_request') {
+    conv.messages.push({type:'tool_request', name: bubble.name, content: bubble.content});
+    const existing = taskEntries.find(t => t.content === bubble.name);
+    if (existing) {
+      existing.status = 'in_progress';
+    } else {
+      taskEntries.push({id: bubble.name, content: bubble.name, status: 'in_progress', priority: 'medium'});
+    }
+    renderTaskList();
+    return;
+  }
+
+  if (bubble.type === 'tool_response') {
+    conv.messages.push({type:'tool_response', name: bubble.name, content: bubble.content});
+    const task = taskEntries.find(t => t.content === bubble.name || t.id === bubble.name);
+    if (task) {
+      task.status = 'completed';
+      renderTaskList();
+    }
+    return;
+  }
+
+  if (bubble.type === 'error') {
+    conv.messages.push({type:'error', content: bubble.content});
+    return;
+  }
+
+  // Fallback: push as-is
+  conv.messages.push(bubble);
 }
 
-function appendOrMerge(conv, type, contentBlock) {
-  const text = contentBlock?.text || '';
-  if (!text) return;
-  const last = conv.messages[conv.messages.length - 1];
-  if (last && last.type === type && last._merging) {
-    last.content += text;
-  } else {
-    conv.messages.push({type, content: text, _merging: true});
+// Task list rendering
+function renderTaskList() {
+  const el = document.getElementById('taskItems');
+  const container = document.getElementById('taskList');
+  if (taskEntries.length === 0) {
+    container.style.display = 'none';
+    return;
   }
+  container.style.display = '';
+  const icons = {pending: '○', in_progress: '◐', completed: '●', failed: '✕'};
+  el.innerHTML = taskEntries.map(t => {
+    const icon = icons[t.status] || '○';
+    return `<div class="task-item ${t.status}">
+      <span class="task-icon">${icon}</span>
+      <span class="task-text" title="${esc(t.content)}">${esc(t.content)}</span>
+    </div>`;
+  }).join('');
 }
 
 // Ask tool: open-ended
@@ -505,7 +666,7 @@ function handleAskOpenEnded(conv, ev) {
 
 function renderAskOpenEnded(m) {
   if (m.answered) {
-    return bubbleHTML('tool-resp', 'Your Answer', esc(m.answer));
+    return bubbleHTML('tool-resp', 'Your Answer', esc(m.answer), false, true, briefText(m.answer));
   }
   return `<div class="ask-panel" id="ask-${m.id}">
     <div class="ask-title">💬 Question</div>
@@ -532,7 +693,7 @@ function handleAskExec(conv, ev) {
 function renderAskExec(m) {
   if (m.answered) {
     const status = m.approved ? '✅ Approved' : '❌ Denied';
-    return bubbleHTML(m.approved ? 'tool-resp' : 'error', `ask_exec ${status}`, esc(m.approved ? m.cmdline : 'Denied: ' + m.answer));
+    return bubbleHTML(m.approved ? 'tool-resp' : 'error', `ask_exec ${status}`, esc(m.approved ? m.cmdline : 'Denied: ' + m.answer), false, true, `${status}: ${esc(m.approved ? m.cmdline : m.answer)}`);
   }
   return `<div class="ask-panel" id="ask-${m.id}">
     <div class="ask-title">⚡ Execute Command</div>
@@ -567,7 +728,7 @@ function handleAskMultipleChoice(conv, ev) {
 
 function renderAskMultipleChoice(m) {
   if (m.answered) {
-    return bubbleHTML('tool-resp', 'Your Choice', esc(m.answer));
+    return bubbleHTML('tool-resp', 'Your Choice', esc(m.answer), false, true, briefText(m.answer));
   }
   let choices = m.choices.map((c,i) =>
     `<button class="choice-btn" onclick="answerChoice('${m.id}', ${i}, this)">${esc(c)}</button>`

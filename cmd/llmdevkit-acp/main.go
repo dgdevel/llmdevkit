@@ -11,10 +11,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"llmdevkit/internal/agents"
+	"llmdevkit/internal/debuglog"
 	"llmdevkit/internal/llms"
 	"llmdevkit/internal/runner"
 	"llmdevkit/internal/mcps"
@@ -46,6 +48,10 @@ type llmdevkitAgent struct {
 func main() {
 	rootDir, _ := os.Getwd()
 	rootDir, _ = filepath.Abs(rootDir)
+
+	debuglog.Init(rootDir)
+	dlog := debuglog.For("acp")
+	dlog.Log("acp starting, rootDir=%s", rootDir)
 
 	// Load configs
 	llmCfg, err := llms.LoadMergedConfig(rootDir)
@@ -148,6 +154,7 @@ var toolCallCounter atomic.Uint64
 
 // Prompt handles the ACP prompt method.
 func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) (*acp.PromptResponse, error) {
+	dlog := debuglog.For("acp")
 	// Extract text from prompt content blocks
 	var promptText string
 	for _, block := range params.Prompt {
@@ -155,6 +162,8 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 			promptText += txt.Text
 		}
 	}
+
+	dlog.Log("Prompt session=%s text_len=%d", params.SessionID, len(promptText))
 
 	stream := acp.NewSessionStream(a.client, params.SessionID)
 
@@ -190,21 +199,34 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 		{Role: "user", Content: promptText},
 	}
 
+	// Map LLM tool-call IDs → ACP ToolCallIDs so start/complete/fail
+	// use the same ID for each tool call.
+	var tcIDMu sync.Mutex
+	tcIDMap := make(map[string]acp.ToolCallID)
+
 	r := runner.NewRunner(llmDef, agentCfg, registry, a.agentCfg,
 		runner.WithTextCallback(func(text string) {
 			stream.SendText(promptCtx, text)
 		}),
 		runner.WithToolStartCallback(func(id, title, kind string) {
-			tcID := acp.ToolCallID(fmt.Sprintf("tc_%d", toolCallCounter.Add(1)))
-			stream.StartToolCall(promptCtx, tcID, title, acp.ToolKindExecute)
+			acpTCID := acp.ToolCallID(fmt.Sprintf("tc_%d", toolCallCounter.Add(1)))
+			tcIDMu.Lock()
+			tcIDMap[id] = acpTCID
+			tcIDMu.Unlock()
+			stream.StartToolCall(promptCtx, acpTCID, title, acp.ToolKindExecute)
 		}),
 		runner.WithToolUpdateCallback(func(id, status, content string) {
-			tcID := acp.ToolCallID(fmt.Sprintf("tc_%d", toolCallCounter.Add(1)))
+			tcIDMu.Lock()
+			acpTCID, ok := tcIDMap[id]
+			tcIDMu.Unlock()
+			if !ok {
+				return
+			}
 			switch status {
 			case "completed":
-				stream.CompleteToolCall(promptCtx, tcID, acp.NewToolCallContentContent(acp.NewContentBlockText(content)))
+				stream.CompleteToolCall(promptCtx, acpTCID, acp.NewToolCallContentContent(acp.NewContentBlockText(content)))
 			case "failed":
-				stream.FailToolCall(promptCtx, tcID)
+				stream.FailToolCall(promptCtx, acpTCID)
 			}
 		}),
 	)
