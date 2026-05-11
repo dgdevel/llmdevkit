@@ -165,6 +165,7 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 
 	dlog.Log("Prompt session=%s text_len=%d", params.SessionID, len(promptText))
 
+	sideURL := os.Getenv("LLMDEVKIT_SIDE_CHANNEL")
 	stream := acp.NewSessionStream(a.client, params.SessionID)
 
 	// Select agent config: use default or first available
@@ -227,6 +228,17 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 				stream.CompleteToolCall(promptCtx, acpTCID, acp.NewToolCallContentContent(acp.NewContentBlockText(content)))
 			case "failed":
 				stream.FailToolCall(promptCtx, acpTCID)
+			}
+		}),
+		runner.WithTokenStatsCallback(func(stats runner.TokenStats) {
+			if sideURL != "" {
+				sideChannelNotify(promptCtx, sideURL, map[string]any{
+					"type":              "token_stats",
+					"prompt_tokens":     stats.PromptTokens,
+					"completion_tokens": stats.CompletionTokens,
+					"total_tokens":      stats.TotalTokens,
+					"llm_calls":         stats.LLMCalls,
+				})
 			}
 		}),
 	)
@@ -563,6 +575,21 @@ func sideChannelCall(ctx context.Context, sideURL string, payload map[string]any
 		return "", fmt.Errorf("side-channel HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 	return string(respBody), nil
+}
+
+// sideChannelNotify sends a fire-and-forget POST to the side-channel (no response needed).
+func sideChannelNotify(ctx context.Context, sideURL string, payload map[string]any) {
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequestWithContext(ctx, "POST", sideURL, bytes.NewReader(body))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
 }
 
 // registerAgentTools registers the agents_available and agent_invoke special tools.

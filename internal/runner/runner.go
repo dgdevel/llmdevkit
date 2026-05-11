@@ -91,7 +91,8 @@ type Runner struct {
 	allAgents    *agents.Config // for agents_available / agent_invoke
 	onText       func(text string)
 	onToolStart  func(id, title, kind string)
-	onToolUpdate func(id, status string, content string)
+	onToolUpdate func(id, status, content string)
+	onTokenStats func(TokenStats)
 }
 
 type Option func(*Runner)
@@ -106,6 +107,10 @@ func WithToolStartCallback(fn func(id, title, kind string)) Option {
 
 func WithToolUpdateCallback(fn func(id, status, content string)) Option {
 	return func(r *Runner) { r.onToolUpdate = fn }
+}
+
+func WithTokenStatsCallback(fn func(TokenStats)) Option {
+	return func(r *Runner) { r.onTokenStats = fn }
 }
 
 func NewRunner(llmCfg *llms.LLMConfig, agentCfg *agents.AgentConfig, registry *ToolRegistry, allAgents *agents.Config, opts ...Option) *Runner {
@@ -154,9 +159,22 @@ type chatResponse struct {
 		} `json:"message"`
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
+	Usage *struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage,omitempty"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error,omitempty"`
+}
+
+// TokenStats holds accumulated token usage for a prompt turn.
+type TokenStats struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+	LLMCalls         int `json:"llm_calls"`
 }
 
 // RunPrompt executes a full prompt turn with the agent.
@@ -189,6 +207,7 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 
 	systemMsg := ChatMessage{Role: "system", Content: r.agent.SystemPrompt}
 	fullMessages := append([]ChatMessage{systemMsg}, messages...)
+	var stats TokenStats
 
 	for {
 		reqBody.Messages = fullMessages
@@ -200,6 +219,17 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 
 		if resp.Error != nil {
 			return "", fmt.Errorf("LLM error: %s", resp.Error.Message)
+		}
+
+		// Accumulate token stats
+		if resp.Usage != nil {
+			stats.PromptTokens += resp.Usage.PromptTokens
+			stats.CompletionTokens += resp.Usage.CompletionTokens
+			stats.TotalTokens += resp.Usage.TotalTokens
+			stats.LLMCalls++
+			if r.onTokenStats != nil {
+				r.onTokenStats(stats)
+			}
 		}
 
 		if len(resp.Choices) == 0 {
@@ -250,9 +280,14 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 				}
 			}
 
+			// Ensure tool response always has content (some LLMs reject empty content)
+			toolContent := result
+			if toolContent == "" {
+				toolContent = "(no output)"
+			}
 			fullMessages = append(fullMessages, ChatMessage{
 				Role:       "tool",
-				Content:    result,
+				Content:    toolContent,
 				ToolCallID: tc.ID,
 			})
 		}

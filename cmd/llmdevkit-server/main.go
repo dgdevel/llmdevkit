@@ -49,6 +49,13 @@ type BubbleMessage struct {
 	Answer         string   `json:"answer,omitempty"`
 }
 
+type TokenStats struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+	LLMCalls         int `json:"llm_calls"`
+}
+
 type ToolDefInfo struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
@@ -63,6 +70,7 @@ type Conversation struct {
 	ToolDefs     []ToolDefInfo   `json:"tool_defs,omitempty"`
 	Title        string          `json:"title,omitempty"`
 	Messages     []BubbleMessage `json:"messages"`
+	TokenStats   TokenStats      `json:"token_stats,omitempty"`
 
 	ACPSessionID string `json:"acp_session_id,omitempty"`
 	Initialized  bool   `json:"-"`
@@ -927,6 +935,44 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle token_stats (fire-and-forget, no user interaction needed)
+	if askType == "token_stats" {
+		var stats struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			TotalTokens      int `json:"total_tokens"`
+			LLMCalls         int `json:"llm_calls"`
+		}
+		if pt, ok := payload["prompt_tokens"]; ok {
+			json.Unmarshal(pt, &stats.PromptTokens)
+		}
+		if ct, ok := payload["completion_tokens"]; ok {
+			json.Unmarshal(ct, &stats.CompletionTokens)
+		}
+		if tt, ok := payload["total_tokens"]; ok {
+			json.Unmarshal(tt, &stats.TotalTokens)
+		}
+		if lc, ok := payload["llm_calls"]; ok {
+			json.Unmarshal(lc, &stats.LLMCalls)
+		}
+
+		s.mu.Lock()
+		if conv, ok := s.convs[convID]; ok {
+			conv.TokenStats = TokenStats{
+				PromptTokens:     conv.TokenStats.PromptTokens + stats.PromptTokens,
+				CompletionTokens: conv.TokenStats.CompletionTokens + stats.CompletionTokens,
+				TotalTokens:      conv.TokenStats.TotalTokens + stats.TotalTokens,
+				LLMCalls:         conv.TokenStats.LLMCalls + stats.LLMCalls,
+			}
+		}
+		s.mu.Unlock()
+
+		s.appendJSONL(convID, "token_stats", stats)
+		s.broadcastSSE(convID, "token_stats", stats)
+		w.WriteHeader(204)
+		return
+	}
+
 	askID := fmt.Sprintf("ask_%d", time.Now().UnixNano())
 
 	// Add bubble for the ask
@@ -1218,6 +1264,14 @@ func (s *Server) loadConversations() error {
 
 			case "prompt_response":
 				// informational only
+
+			case "token_stats":
+				var ts TokenStats
+				json.Unmarshal(line.Payload, &ts)
+				conv.TokenStats.PromptTokens += ts.PromptTokens
+				conv.TokenStats.CompletionTokens += ts.CompletionTokens
+				conv.TokenStats.TotalTokens += ts.TotalTokens
+				conv.TokenStats.LLMCalls += ts.LLMCalls
 			}
 		}
 		f.Close()
