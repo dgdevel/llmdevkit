@@ -43,6 +43,18 @@ type llmdevkitAgent struct {
 	rootDir    string
 
 	client acp.Client // set after connection init
+
+	// Cached devkit MCP client — spawned once, reused across prompts.
+	devkitMu       sync.Mutex
+	devkitOnce     bool
+	devkitTools    []devkitToolEntry
+	_devkitClient  *client.Client
+}
+
+type devkitToolEntry struct {
+	Name        string
+	Description string
+	InputSchema map[string]any
 }
 
 func main() {
@@ -303,55 +315,92 @@ func (a *llmdevkitAgent) buildToolRegistry(ctx context.Context, agentCfg *agents
 	return registry, nil
 }
 
-// registerDevkitTools connects to an in-process llmdevkit-mcp server and registers its tools.
-// It also sends the tool definitions to llmdevkit-server via sideURL so the server
-// can display them in the UI without spawning its own MCP process.
+// registerDevkitTools spawns llmdevkit-mcp once (cached), registers its tools,
+// and sends tool definitions to llmdevkit-server via sideURL.
 func (a *llmdevkitAgent) registerDevkitTools(ctx context.Context, registry *runner.ToolRegistry, sideURL string) error {
-	// Start llmdevkit-mcp as a subprocess
-	execName := "llmdevkit-mcp"
-	c, err := client.NewStdioMCPClient(execName, nil, a.rootDir)
-	if err != nil {
-		return fmt.Errorf("start devkit: %w", err)
-	}
+	a.devkitMu.Lock()
+	defer a.devkitMu.Unlock()
 
-	if _, err := c.Initialize(ctx, mcp.InitializeRequest{
-		Params: mcp.InitializeParams{
-			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-			ClientInfo: mcp.Implementation{
-				Name:    "llmdevkit-acp",
-				Version: "0.1.0",
+	if !a.devkitOnce {
+		// Build args for llmdevkit-mcp
+		args := []string{a.rootDir}
+		if os.Getenv("LLMDEVKIT_ENABLE_INDEXER") == "1" {
+			args = append([]string{"-enable-indexer"}, args...)
+		}
+
+		execName := "llmdevkit-mcp"
+		c, err := client.NewStdioMCPClient(execName, nil, args...)
+		if err != nil {
+			return fmt.Errorf("start devkit: %w", err)
+		}
+
+		if _, err := c.Initialize(ctx, mcp.InitializeRequest{
+			Params: mcp.InitializeParams{
+				ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
+				ClientInfo: mcp.Implementation{
+					Name:    "llmdevkit-acp",
+					Version: "0.1.0",
+				},
 			},
-		},
-	}); err != nil {
-		return fmt.Errorf("init devkit: %w", err)
+		}); err != nil {
+			return fmt.Errorf("init devkit: %w", err)
+		}
+
+		toolsResult, err := c.ListTools(ctx, mcp.ListToolsRequest{})
+		if err != nil {
+			return fmt.Errorf("list devkit tools: %w", err)
+		}
+
+		for _, tool := range toolsResult.Tools {
+			schema := map[string]any{}
+			if b, err := json.Marshal(tool.InputSchema); err == nil {
+				json.Unmarshal(b, &schema)
+			}
+			desc := tool.Description
+			if desc == "" {
+				desc = tool.Name
+			}
+			a.devkitTools = append(a.devkitTools, devkitToolEntry{
+				Name:        tool.Name,
+				Description: desc,
+				InputSchema: schema,
+			})
+		}
+
+		// Store client for tool calls
+		a._devkitClient = c
+
+		// Send tool definitions to llmdevkit-server on first spawn.
+		if sideURL != "" && len(a.devkitTools) > 0 {
+			var toolDefs []map[string]any
+			for _, t := range a.devkitTools {
+				toolDefs = append(toolDefs, map[string]any{
+					"name":        t.Name,
+					"description": t.Description,
+					"parameters":  t.InputSchema,
+				})
+			}
+			sideChannelNotify(ctx, sideURL, map[string]any{
+				"type":  "tool_defs",
+				"tools": toolDefs,
+			})
+		}
+
+		a.devkitOnce = true
 	}
 
-	toolsResult, err := c.ListTools(ctx, mcp.ListToolsRequest{})
-	if err != nil {
-		return fmt.Errorf("list devkit tools: %w", err)
-	}
-
-	// Build tool defs for side-channel notification
-	var toolDefs []map[string]any
-
-	for _, tool := range toolsResult.Tools {
-		t := tool
-		schema := map[string]any{}
-		if b, err := json.Marshal(t.InputSchema); err == nil {
-			json.Unmarshal(b, &schema)
-		}
-		desc := t.Description
-		if desc == "" {
-			desc = t.Name
-		}
+	// Register all cached tools using the shared client
+	c := a._devkitClient
+	for _, entry := range a.devkitTools {
+		e := entry
 		registry.Add(&runner.ToolDef{
-			Name:        t.Name,
-			Description: desc,
-			InputSchema: schema,
+			Name:        e.Name,
+			Description: e.Description,
+			InputSchema: e.InputSchema,
 			Call: func(ctx context.Context, args map[string]any) (string, error) {
 				req := mcp.CallToolRequest{
 					Params: mcp.CallToolParams{
-						Name:      t.Name,
+						Name:      e.Name,
 						Arguments: args,
 					},
 				}
@@ -361,20 +410,6 @@ func (a *llmdevkitAgent) registerDevkitTools(ctx context.Context, registry *runn
 				}
 				return toolResultToString(result), nil
 			},
-		})
-		toolDefs = append(toolDefs, map[string]any{
-			"name":        t.Name,
-			"description": desc,
-			"parameters":  schema,
-		})
-	}
-
-	// Send tool definitions to llmdevkit-server so it can display them
-	// in the UI without spawning its own llmdevkit-mcp subprocess.
-	if sideURL != "" && len(toolDefs) > 0 {
-		sideChannelNotify(ctx, sideURL, map[string]any{
-			"type":  "tool_defs",
-			"tools": toolDefs,
 		})
 	}
 

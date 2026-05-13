@@ -6,6 +6,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -106,6 +107,8 @@ type Server struct {
 
 	toolDefsMu    sync.RWMutex
 	toolDefsCache map[string][]ToolDefInfo // agent name → cached tool defs from ACP
+
+	enableIndexer bool
 }
 
 type SSEEvent struct {
@@ -126,6 +129,9 @@ type AskAnswer struct {
 // ── Main ────────────────────────────────────────────────────────────────────
 
 func main() {
+	enableIndexer := flag.Bool("enable-indexer", false, "pass --enable-indexer through to llmdevkit-mcp via ACP")
+	flag.Parse()
+
 	rootDir, _ := os.Getwd()
 	rootDir, _ = filepath.Abs(rootDir)
 
@@ -158,6 +164,7 @@ func main() {
 		askPends:      make(map[string]chan *AskAnswer),
 		sseClients:    make(map[chan SSEEvent]struct{}),
 		toolDefsCache: make(map[string][]ToolDefInfo),
+		enableIndexer: *enableIndexer,
 	}
 
 	if err := srv.loadConversations(); err != nil {
@@ -624,6 +631,9 @@ func (s *Server) ensureACPConnection() error {
 	cmd.Dir = s.rootDir
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(os.Environ(), "LLMDEVKIT_SIDE_CHANNEL=http://localhost:18681/api/sidechannel")
+	if s.enableIndexer {
+		cmd.Env = append(cmd.Env, "LLMDEVKIT_ENABLE_INDEXER=1")
+	}
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
