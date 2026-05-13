@@ -186,7 +186,7 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 	}
 
 	// Build tool registry
-	registry, err := a.buildToolRegistry(ctx, agentCfg)
+	registry, err := a.buildToolRegistry(ctx, agentCfg, sideURL)
 	if err != nil {
 		stream.SendText(ctx, fmt.Sprintf("Error building tools: %v\n", err))
 		return &acp.PromptResponse{StopReason: acp.StopReasonRefusal}, nil
@@ -259,7 +259,7 @@ func (a *llmdevkitAgent) Cancel(ctx context.Context, params *acp.CancelNotificat
 }
 
 // buildToolRegistry creates the tool registry for a given agent configuration.
-func (a *llmdevkitAgent) buildToolRegistry(ctx context.Context, agentCfg *agents.AgentConfig) (*runner.ToolRegistry, error) {
+func (a *llmdevkitAgent) buildToolRegistry(ctx context.Context, agentCfg *agents.AgentConfig, sideURL string) (*runner.ToolRegistry, error) {
 	registry := runner.NewToolRegistry()
 
 	if agentCfg.Tools == "" {
@@ -272,7 +272,7 @@ func (a *llmdevkitAgent) buildToolRegistry(ctx context.Context, agentCfg *agents
 		switch token {
 		case "devkit":
 			// Register devkit tools (in-process llmdevkit-mcp server)
-			if err := a.registerDevkitTools(ctx, registry); err != nil {
+			if err := a.registerDevkitTools(ctx, registry, sideURL); err != nil {
 				return nil, fmt.Errorf("devkit tools: %w", err)
 			}
 
@@ -304,7 +304,9 @@ func (a *llmdevkitAgent) buildToolRegistry(ctx context.Context, agentCfg *agents
 }
 
 // registerDevkitTools connects to an in-process llmdevkit-mcp server and registers its tools.
-func (a *llmdevkitAgent) registerDevkitTools(ctx context.Context, registry *runner.ToolRegistry) error {
+// It also sends the tool definitions to llmdevkit-server via sideURL so the server
+// can display them in the UI without spawning its own MCP process.
+func (a *llmdevkitAgent) registerDevkitTools(ctx context.Context, registry *runner.ToolRegistry, sideURL string) error {
 	// Start llmdevkit-mcp as a subprocess
 	execName := "llmdevkit-mcp"
 	c, err := client.NewStdioMCPClient(execName, nil, a.rootDir)
@@ -328,6 +330,9 @@ func (a *llmdevkitAgent) registerDevkitTools(ctx context.Context, registry *runn
 	if err != nil {
 		return fmt.Errorf("list devkit tools: %w", err)
 	}
+
+	// Build tool defs for side-channel notification
+	var toolDefs []map[string]any
 
 	for _, tool := range toolsResult.Tools {
 		t := tool
@@ -357,7 +362,22 @@ func (a *llmdevkitAgent) registerDevkitTools(ctx context.Context, registry *runn
 				return toolResultToString(result), nil
 			},
 		})
+		toolDefs = append(toolDefs, map[string]any{
+			"name":        t.Name,
+			"description": desc,
+			"parameters":  schema,
+		})
 	}
+
+	// Send tool definitions to llmdevkit-server so it can display them
+	// in the UI without spawning its own llmdevkit-mcp subprocess.
+	if sideURL != "" && len(toolDefs) > 0 {
+		sideChannelNotify(ctx, sideURL, map[string]any{
+			"type":  "tool_defs",
+			"tools": toolDefs,
+		})
+	}
+
 	return nil
 }
 
@@ -648,7 +668,7 @@ func (a *llmdevkitAgent) registerAgentTools(registry *runner.ToolRegistry) {
 				return "", fmt.Errorf("LLM %q not found for agent %q", subCfg.LLM, agentName)
 			}
 
-			subRegistry, err := a.buildToolRegistry(ctx, subCfg)
+			subRegistry, err := a.buildToolRegistry(ctx, subCfg, "")
 			if err != nil {
 				return "", fmt.Errorf("build tools for agent %q: %w", agentName, err)
 			}

@@ -103,6 +103,9 @@ type Server struct {
 
 	sseMu      sync.RWMutex
 	sseClients map[chan SSEEvent]struct{}
+
+	toolDefsMu    sync.RWMutex
+	toolDefsCache map[string][]ToolDefInfo // agent name → cached tool defs from ACP
 }
 
 type SSEEvent struct {
@@ -146,14 +149,15 @@ func main() {
 	}
 
 	srv := &Server{
-		rootDir:    rootDir,
-		llmCfg:     llmCfg,
-		agentCfg:   agentCfg,
-		mcpCfg:     mcpCfg,
-		dlog:       dlog,
-		convs:      make(map[string]*Conversation),
-		askPends:   make(map[string]chan *AskAnswer),
-		sseClients: make(map[chan SSEEvent]struct{}),
+		rootDir:       rootDir,
+		llmCfg:        llmCfg,
+		agentCfg:      agentCfg,
+		mcpCfg:        mcpCfg,
+		dlog:          dlog,
+		convs:         make(map[string]*Conversation),
+		askPends:      make(map[string]chan *AskAnswer),
+		sseClients:    make(map[chan SSEEvent]struct{}),
+		toolDefsCache: make(map[string][]ToolDefInfo),
 	}
 
 	if err := srv.loadConversations(); err != nil {
@@ -249,11 +253,13 @@ func (s *Server) resolveToolDefs(ctx context.Context, agentName string) ([]ToolD
 	for _, token := range agentCfg.ToolNames() {
 		switch token {
 		case "devkit":
-			d, err := s.resolveMCPToolDefs(ctx, "llmdevkit-mcp", "")
-			if err != nil {
-				s.dlog.Log("resolveToolDefs devkit: %v", err)
-			} else {
-				defs = append(defs, d...)
+			// Use cached tool defs from ACP (sent via side channel) instead
+			// of spawning llmdevkit-mcp subprocess.
+			s.toolDefsMu.RLock()
+			cached := s.toolDefsCache["devkit"]
+			s.toolDefsMu.RUnlock()
+			if len(cached) > 0 {
+				defs = append(defs, cached...)
 			}
 		case "agents":
 			defs = append(defs,
@@ -985,6 +991,22 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 
 		s.appendJSONL(convID, "token_stats", stats)
 		s.broadcastSSE(convID, "token_stats", stats)
+		w.WriteHeader(204)
+		return
+	}
+
+	// Handle tool_defs (fire-and-forget, ACP sends its tool registry)
+	if askType == "tool_defs" {
+		var toolDefs []ToolDefInfo
+		if td, ok := payload["tools"]; ok {
+			json.Unmarshal(td, &toolDefs)
+		}
+		if len(toolDefs) > 0 {
+			s.toolDefsMu.Lock()
+			s.toolDefsCache["devkit"] = toolDefs
+			s.toolDefsMu.Unlock()
+			s.dlog.Log("handleSideChannel cached %d devkit tool defs", len(toolDefs))
+		}
 		w.WriteHeader(204)
 		return
 	}
