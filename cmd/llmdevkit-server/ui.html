@@ -82,11 +82,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .bubble-tool-req .bubble-label{color:var(--yellow)}
 .bubble-tool-resp .bubble-label{color:var(--teal)}
 /* Collapsed bubbles */
-.bubble.collapsed{cursor:pointer}
 .bubble.collapsed .bubble-content{display:none}
 .bubble.collapsed .bubble-brief{display:block}
 .bubble .bubble-brief{display:none;color:var(--text2);font-size:12px;font-style:normal;font-weight:400;text-transform:none;letter-spacing:0;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
-.bubble:not(.collapsed){cursor:default}
+.bubble.collapsible .bubble-label{cursor:pointer}
+.bubble{cursor:default}
 /* Ask tool panels */
 .ask-panel{background:var(--surface2);border:2px solid var(--accent);border-radius:8px;padding:14px;margin:8px 0;max-width:90%;align-self:center}
 .ask-panel .ask-title{font-weight:700;color:var(--accent);margin-bottom:8px;font-size:14px}
@@ -171,7 +171,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
     <div class="messages" id="messages"></div>
     <div class="input-area">
       <div class="input-row">
-        <textarea id="promptInput" rows="1" placeholder="Type your prompt… (Ctrl+Enter to send)" onkeydown="onPromptKey(event)" oninput="autoGrow(this)"></textarea>
+        <textarea id="promptInput" rows="1" placeholder="Type your prompt… (Enter to send, Shift+Enter for newline)" onkeydown="onPromptKey(event)" oninput="autoGrow(this)"></textarea>
         <button id="sendBtn" onclick="sendPrompt()">▶ Send</button>
       </div>
     </div>
@@ -431,6 +431,7 @@ function renderToolRequest(m) {
   try { parsed = JSON.parse(m.content); } catch(e) {}
   if (parsed) {
     if (parsed.title) title = esc(parsed.title);
+    else if (parsed.name) title = esc(parsed.name);
     // Build args table from the parsed content
     const argEntries = [];
     // Look for arguments/input/rawInput object (ACP uses rawInput)
@@ -438,9 +439,20 @@ function renderToolRequest(m) {
     if (parsed.arguments && typeof parsed.arguments === 'object') args = parsed.arguments;
     else if (parsed.input && typeof parsed.input === 'object') args = parsed.input;
     else if (parsed.rawInput && typeof parsed.rawInput === 'object') args = parsed.rawInput;
+    else if (typeof parsed.rawInput === 'string') { try { args = JSON.parse(parsed.rawInput); } catch(e2) {} }
+    else if (parsed.params && typeof parsed.params === 'object') args = parsed.params;
+    // Last resort: treat all non-meta keys as args
+    if (!args && typeof parsed === 'object') {
+      const skip = new Set(['title','name','toolCallId','toolCallID','id','status','kind','content','_meta','locations','rawOutput','rawInput','arguments','input']);
+      const candidates = Object.keys(parsed).filter(k => !skip.has(k));
+      if (candidates.length > 0) {
+        args = {};
+        candidates.forEach(k => args[k] = parsed[k]);
+      }
+    }
     if (args) {
       for (const [k, v] of Object.entries(args)) {
-        const val = typeof v === 'string' ? esc(v) : esc(JSON.stringify(v));
+        const val = typeof v === 'string' ? esc(v) : esc(JSON.stringify(v, null, 2));
         argEntries.push(`<tr><td class="arg-name">${esc(k)}</td><td class="arg-val">${val}</td></tr>`);
       }
     }
@@ -448,7 +460,6 @@ function renderToolRequest(m) {
       argsHTML = `<table class="tool-args-table">${argEntries.join('')}</table>`;
     }
   }
-  // No args found — just show title, no raw JSON dump
   const brief = briefToolReq(m);
   return bubbleHTML('tool-req', `⚙ ${title}`, argsHTML, true, true, brief);
 }
@@ -492,9 +503,10 @@ function briefToolReq(m) {
 
 function bubbleHTML(cls, label, content, raw, collapsed, brief) {
   const col = collapsed ? ' collapsed' : '';
+  const coll = collapsed ? ' collapsible' : '';
   const briefLine = brief ? `<div class="bubble-brief">${brief}</div>` : '';
-  return `<div class="bubble bubble-${cls}${col}" onclick="this.classList.toggle('collapsed')">
-    <div class="bubble-label">${label}${briefLine}</div>
+  return `<div class="bubble bubble-${cls}${col}${coll}">
+    <div class="bubble-label" onclick="this.parentElement.classList.toggle('collapsed')">${label}${briefLine}</div>
     <div class="bubble-content">${raw ? content : content}</div>
   </div>`;
 }
@@ -551,10 +563,11 @@ function autoGrow(el) {
 }
 
 function onPromptKey(e) {
-  if (e.key === 'Enter' && e.ctrlKey) {
+  if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     sendPrompt();
   }
+  // Shift+Enter inserts newline (default behavior)
 }
 
 async function sendPrompt() {
