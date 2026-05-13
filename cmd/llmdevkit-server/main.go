@@ -514,7 +514,13 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 	})
 	s.appendJSONL(convID, "bubble", BubbleMessage{Type: "user", Content: req.Prompt})
 	s.broadcastSSE(convID, "state", map[string]bool{"running": true})
-	s.broadcastSSE("", "conversation_updated", conv)
+	// Snapshot conv for SSE broadcast — goroutine may modify conv concurrently
+	s.mu.Lock()
+	convCopy := *conv
+	convCopy.Messages = make([]BubbleMessage, len(conv.Messages))
+	copy(convCopy.Messages, conv.Messages)
+	s.mu.Unlock()
+	s.broadcastSSE("", "conversation_updated", &convCopy)
 
 	s.dlog.Log("INIT starting runACPPrompt goroutine for conv=%s", convID)
 	go s.runACPPrompt(convID, req.Prompt)
@@ -553,11 +559,15 @@ func (s *Server) handleConvPrompt(w http.ResponseWriter, r *http.Request, convID
 
 	s.mu.Lock()
 	conv.Messages = append(conv.Messages, BubbleMessage{Type: "user", Content: req.Prompt})
+	// Snapshot for SSE broadcast under lock to avoid data race with goroutine
+	convCopy := *conv
+	convCopy.Messages = make([]BubbleMessage, len(conv.Messages))
+	copy(convCopy.Messages, conv.Messages)
 	s.mu.Unlock()
 
 	s.appendJSONL(convID, "bubble", BubbleMessage{Type: "user", Content: req.Prompt})
 	s.broadcastSSE(convID, "state", map[string]bool{"running": true})
-	s.broadcastSSE("", "conversation_updated", conv)
+	s.broadcastSSE("", "conversation_updated", &convCopy)
 
 	go s.runACPPrompt(convID, req.Prompt)
 

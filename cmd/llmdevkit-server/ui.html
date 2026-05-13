@@ -293,7 +293,13 @@ async function confirmSetup() {
     body: JSON.stringify({agent, system_prompt: sysPrompt})
   });
   const conv = await r.json();
-  conversations.unshift(conv);
+  // Avoid duplicate if SSE conversation_created already added it
+  const existingIdx = conversations.findIndex(c => c.id === conv.id);
+  if (existingIdx >= 0) {
+    conversations[existingIdx] = conv;
+  } else {
+    conversations.unshift(conv);
+  }
   activeConvId = conv.id;
   renderConvList();
   selectConversation(conv.id);
@@ -427,30 +433,22 @@ function renderToolRequest(m) {
     if (parsed.title) title = esc(parsed.title);
     // Build args table from the parsed content
     const argEntries = [];
-    // Look for arguments/input object
+    // Look for arguments/input/rawInput object (ACP uses rawInput)
     let args = null;
     if (parsed.arguments && typeof parsed.arguments === 'object') args = parsed.arguments;
     else if (parsed.input && typeof parsed.input === 'object') args = parsed.input;
+    else if (parsed.rawInput && typeof parsed.rawInput === 'object') args = parsed.rawInput;
     if (args) {
       for (const [k, v] of Object.entries(args)) {
         const val = typeof v === 'string' ? esc(v) : esc(JSON.stringify(v));
         argEntries.push(`<tr><td class="arg-name">${esc(k)}</td><td class="arg-val">${val}</td></tr>`);
       }
     }
-    // Also show status/kind if present
-    const meta = [];
-    if (parsed.kind) meta.push(`<span class="tool-meta">${esc(parsed.kind)}</span>`);
-    if (parsed.status) meta.push(`<span class="tool-meta">${esc(parsed.status)}</span>`);
     if (argEntries.length > 0) {
       argsHTML = `<table class="tool-args-table">${argEntries.join('')}</table>`;
     }
-    if (meta.length > 0) {
-      argsHTML = meta.join(' ') + argsHTML;
-    }
   }
-  if (!argsHTML && m.content) {
-    argsHTML = `<pre>${esc(m.content)}</pre>`;
-  }
+  // No args found — just show title, no raw JSON dump
   const brief = briefToolReq(m);
   return bubbleHTML('tool-req', `⚙ ${title}`, argsHTML, true, true, brief);
 }
@@ -474,10 +472,12 @@ function briefToolReq(m) {
     const obj = JSON.parse(m.content);
     const name = obj.title || m.name || '';
     let args = '';
-    if (obj.arguments && typeof obj.arguments === 'object') {
-      args = Object.entries(obj.arguments).map(([k,v]) => `${esc(k)}: ${esc(String(v))}`).join(' | ');
-    } else if (obj.input && typeof obj.input === 'object') {
-      args = Object.entries(obj.input).map(([k,v]) => `${esc(k)}: ${esc(String(v))}`).join(' | ');
+    let argsObj = null;
+    if (obj.arguments && typeof obj.arguments === 'object') argsObj = obj.arguments;
+    else if (obj.input && typeof obj.input === 'object') argsObj = obj.input;
+    else if (obj.rawInput && typeof obj.rawInput === 'object') argsObj = obj.rawInput;
+    if (argsObj) {
+      args = Object.entries(argsObj).map(([k,v]) => `${esc(k)}: ${esc(String(v).substring(0,50))}`).join(' | ');
     } else if (obj.input_schema && obj.input_schema.properties) {
       args = Object.keys(obj.input_schema.properties).map(k => esc(k)).join(', ');
     } else if (!args && m.content) {
@@ -664,7 +664,17 @@ function handleEvent(ev) {
   if (ev.event === 'conversation_updated') {
     const idx = conversations.findIndex(c => c.id === ev.data?.id);
     if (idx >= 0) {
-      conversations[idx] = ev.data;
+      // Merge: update metadata but keep local message state (_merging, answered, etc.)
+      const local = conversations[idx];
+      const remote = ev.data;
+      Object.assign(local, {
+        title: remote.title,
+        agent: remote.agent,
+        system_prompt: remote.system_prompt,
+        tools: remote.tools,
+        token_stats: remote.token_stats,
+        acp_session_id: remote.acp_session_id
+      });
     }
     renderConvList();
     if (activeConvId === ev.data?.id) {
@@ -716,6 +726,9 @@ function handleEvent(ev) {
 function handleSessionUpdate(conv, bubble) {
   // bubble is a BubbleMessage from the server
   if (!bubble || !bubble.type) return;
+
+  // Skip ask types — handled by dedicated SSE event handlers to avoid double bubbles
+  if (bubble.type === 'ask_open_ended' || bubble.type === 'ask_exec' || bubble.type === 'ask_multiple_choice') return;
 
   // Merge streaming text bubbles
   if (bubble.type === 'llm' || bubble.type === 'thinking') {
