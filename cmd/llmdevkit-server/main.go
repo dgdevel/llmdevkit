@@ -1102,7 +1102,21 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 	switch askType {
 	case "ask_exec":
 		if ans.Approved {
-			w.Write([]byte(ans.Cmdline))
+			// Execute the command and return output to the ACP subprocess
+			timeout := time.Duration(ans.Timeout) * time.Second
+			if timeout == 0 {
+				timeout = 30 * time.Second
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, "sh", "-c", ans.Cmdline)
+			cmd.Dir = s.rootDir
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				w.Write([]byte(fmt.Sprintf("%s\n(exit %v)", string(out), err)))
+			} else {
+				w.Write(out)
+			}
 		} else {
 			w.WriteHeader(200)
 			w.Write([]byte("DENIED: " + ans.DenyReason))
