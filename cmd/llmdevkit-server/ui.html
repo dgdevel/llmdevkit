@@ -893,7 +893,7 @@ function renderTaskList() {
 
 // Ask tool: open-ended
 function handleAskOpenEnded(conv, ev) {
-  const msg = {type:'ask_open_ended', id: ev.ask_id, question: ev.data.question, answered: false, answer: ''};
+  const msg = {type:'ask_open_ended', id: ev.data.ask_id, question: ev.data.question, answered: false, answer: ''};
   conv.messages.push(msg);
   if (conv.id === activeConvId) renderMessages(conv);
 }
@@ -915,7 +915,7 @@ function renderAskOpenEnded(m) {
 // Ask tool: exec
 function handleAskExec(conv, ev) {
   const msg = {
-    type:'ask_exec', id: ev.ask_id,
+    type:'ask_exec', id: ev.data.ask_id,
     cmdline: ev.data.cmdline,
     timeout: ev.data.timeout || 30,
     answered: false, approved: false, answer: ''
@@ -950,7 +950,7 @@ function renderAskExec(m) {
 // Ask tool: multiple choice
 function handleAskMultipleChoice(conv, ev) {
   const msg = {
-    type:'ask_multiple_choice', id: ev.ask_id,
+    type:'ask_multiple_choice', id: ev.data.ask_id,
     question: ev.data.question,
     choices: ev.data.choices || [],
     allow_open_ended: ev.data.allow_open_ended || false,

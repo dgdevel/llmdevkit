@@ -1034,6 +1034,12 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 
 	askID := fmt.Sprintf("ask_%d", time.Now().UnixNano())
 
+	// Inject ask_id into the payload so the SSE broadcast carries it.
+	{
+		askIDJSON, _ := json.Marshal(askID)
+		payload["ask_id"] = askIDJSON
+	}
+
 	// Add bubble for the ask
 	var bubble BubbleMessage
 	bubble.ID = askID
