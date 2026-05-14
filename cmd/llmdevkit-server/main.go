@@ -369,7 +369,7 @@ func (s *Server) handleConversations(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		s.mu.RLock()
-		var list []*Conversation
+		list := make([]*Conversation, 0)
 		for _, id := range s.convOrder {
 			if c, ok := s.convs[id]; ok {
 				list = append(list, c)
