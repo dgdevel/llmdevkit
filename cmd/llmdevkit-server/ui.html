@@ -271,12 +271,13 @@ function rebuildTaskState(conv) {
       try {
         const parsed = JSON.parse(m.content);
         const tcId = parsed.toolCallId || parsed.toolCallID || parsed.id;
-        const tcName = parsed.name || parsed.title || m.name;
+        const tcName = parsed.title || parsed.name || m.name;
         if (tcId) toolCallIdToName[tcId] = tcName;
       } catch(e) {}
     }
     if (m.type === 'tool_response') {
-      const realToolName = toolCallIdToName[m.name] || m.name;
+      const lookupKey = m.id || m.name;
+      const realToolName = toolCallIdToName[lookupKey] || m.name;
       updateTasksFromToolResponse(realToolName, m.content);
     }
   }
@@ -490,7 +491,9 @@ function renderToolRequest(m) {
 
 function renderToolResponse(m) {
   let name = m.name || '';
-  // Try to make a nicer display
+  // Resolve tool name from toolCallIdToName map if name looks like an ID
+  if (m.id && toolCallIdToName[m.id]) name = toolCallIdToName[m.id];
+  else if (toolCallIdToName[name]) name = toolCallIdToName[name];
   const brief = briefText(m.content);
   const content = `<pre>${esc(m.content)}</pre>`;
   return bubbleHTML('tool-resp', `📋 ${esc(name)}`, content, true, true, brief);
@@ -799,16 +802,17 @@ function handleSessionUpdate(conv, bubble) {
     try {
       const parsed = JSON.parse(bubble.content);
       const tcId = parsed.toolCallId || parsed.toolCallID || parsed.id;
-      const tcName = parsed.name || parsed.title || bubble.name;
+      const tcName = parsed.title || parsed.name || bubble.name;
       if (tcId) toolCallIdToName[tcId] = tcName;
     } catch(e) {}
     return;
   }
 
   if (bubble.type === 'tool_response') {
-    conv.messages.push({type:'tool_response', name: bubble.name, content: bubble.content});
+    conv.messages.push({type:'tool_response', name: bubble.name, id: bubble.id, content: bubble.content});
     // Resolve real tool name from toolCallId→name map
-    const realToolName = toolCallIdToName[bubble.name] || bubble.name;
+    const lookupKey = bubble.id || bubble.name;
+    const realToolName = toolCallIdToName[lookupKey] || bubble.name;
     // Parse task management tool responses
     updateTasksFromToolResponse(realToolName, bubble.content);
     return;

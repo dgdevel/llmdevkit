@@ -825,7 +825,11 @@ func (c *acpClientHandler) handleSessionUpdate(convID string, u acp.SessionUpdat
 			if content == "" {
 				content = status
 			}
-			c.server.addBubble(convID, BubbleMessage{Type: "tool_response", Name: string(tcu.ToolCallID), Content: content})
+			toolName := tcu.Title
+			if toolName == "" {
+				toolName = string(tcu.ToolCallID)
+			}
+			c.server.addBubble(convID, BubbleMessage{Type: "tool_response", Name: toolName, ID: string(tcu.ToolCallID), Content: content})
 		}
 	}
 }
@@ -877,6 +881,39 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 	}
 
 	s.dlog.Log("runACPPrompt conv=%s acp_session=%s prompt_len=%d", convID, conv.ACPSessionID, len(promptText))
+
+	// Ensure ACP connection is alive (may have been lost on server restart)
+	justConnected := false
+	s.acpMu.Lock()
+	if s.acpConn == nil || !s.acpConnected {
+		justConnected = true
+	}
+	s.acpMu.Unlock()
+	if justConnected {
+		if err := s.ensureACPConnection(); err != nil {
+			s.dlog.Log("runACPPrompt conv=%s ensureACPConnection FAILED: %v", convID, err)
+			s.addBubble(convID, BubbleMessage{Type: "error", Content: fmt.Sprintf("ACP not connected: %v", err)})
+			s.broadcastSSE(convID, "state", map[string]bool{"running": false})
+			return
+		}
+		// Fresh ACP process — need a new session
+		s.acpMu.Lock()
+		sessResp, err := s.acpConn.NewSession(context.Background(), &acp.NewSessionRequest{
+			Cwd: s.rootDir,
+		})
+		s.acpMu.Unlock()
+		if err != nil {
+			s.dlog.Log("runACPPrompt conv=%s NewSession FAILED: %v", convID, err)
+			s.addBubble(convID, BubbleMessage{Type: "error", Content: fmt.Sprintf("ACP new session: %v", err)})
+			s.broadcastSSE(convID, "state", map[string]bool{"running": false})
+			return
+		}
+		s.mu.Lock()
+		conv.ACPSessionID = string(sessResp.SessionID)
+		conv.Initialized = true
+		s.mu.Unlock()
+		s.dlog.Log("runACPPrompt conv=%s new session created: %s", convID, conv.ACPSessionID)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
