@@ -13,6 +13,7 @@ The project is a merge of my previous two projects [nixdevkit](/dgdevel/nixdevki
 | `llmdevkit-indexer` | Build and query the code index |
 | `llmdevkit-mcp` | MCP server — file tools, task management, command runner, code search, memory |
 | `llmdevkit-acp` | ACP server — agent harness with LLM orchestration, tool routing, and sub-agent invocation |
+| `llmdevkit-server` | Web UI server — chat interface for agents with real-time streaming, conversation persistence, and human-in-the-loop tools |
 
 Configuration is stored in `.llmdevkit/` (local, per-project) and `$XDG_CONFIG_HOME/llmdevkit/` (global), merged with local overriding global. Both directories are invisible to all MCP tools.
 
@@ -21,6 +22,7 @@ Configuration is stored in `.llmdevkit/` (local, per-project) and `$XDG_CONFIG_H
 - [llmdevkit-indexer](#llmdevkit-indexer)
 - [llmdevkit-mcp](#llmdevkit-mcp)
 - [llmdevkit-acp](#llmdevkit-acp)
+- [llmdevkit-server](#llmdevkit-server)
 
 ---
 
@@ -541,3 +543,51 @@ Hooks are automatic tool calls at specific lifecycle points. Each hook maps tool
 ```
 
 Communicates over stdio using the ACP JSON-RPC protocol. Designed to be launched by an ACP-compatible client.
+
+---
+
+## llmdevkit-server
+
+A web-based chat UI server that provides a browser interface for interacting with agents through `llmdevkit-acp`. Manages conversations, streams LLM responses in real-time, and surfaces human-in-the-loop tools (questions, approvals) as interactive UI elements.
+
+```
+./llmdevkit-server [--enable-indexer]
+```
+
+Listens on `http://localhost:18681` and serves a single-page chat application.
+
+### Features
+
+- **Web chat UI** — embedded single-page app with dark theme, conversation sidebar, markdown rendering, and auto-scroll
+- **Agent selection** — pick any agent defined in `agents.yml`; system prompt and tool set are loaded from config
+- **Real-time streaming** — LLM text and thinking chunks are streamed live via Server-Sent Events (SSE)
+- **Tool call visualization** — shows tool requests and responses as styled message bubbles
+- **Human-in-the-loop tools** — interactive UI for three tool types proxied from the ACP subprocess:
+  - `ask_open_ended` — text input for free-form answers
+  - `ask_exec` — command approval dialog with confirm/deny
+  - `ask_multiple_choice` — selectable choice list with optional free-text option
+- **Conversation persistence** — each conversation is stored as a JSONL file under `.llmdevkit/conversations/`, reloaded on restart
+- **Token usage tracking** — displays cumulative prompt/completion token counts and LLM call count
+- **ACP orchestration** — spawns `llmdevkit-acp` as a subprocess over stdio, communicates via ACP JSON-RPC, and proxies all session updates to the browser
+- **Side channel** — HTTP endpoint (`/api/sidechannel`) that the ACP subprocess uses to forward ask-tool requests, token stats, and tool definition caches back to the server
+- **MCP tool definitions** — resolves tool schemas from configured MCP servers and the in-process devkit tools for display in the UI
+- **Conversation management** — create, list, get, delete conversations via REST API; cancel running agent turns
+- **`--enable-indexer` flag** — passed through to `llmdevkit-acp` via environment variable to enable code indexing tools
+
+### REST API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Serve the embedded web UI |
+| `/api/agents` | GET | List available agents and their LLM models |
+| `/api/tooldefs?agent=<name>` | GET | List tool definitions for an agent |
+| `/api/conversations` | GET | List all conversations |
+| `/api/conversations` | POST | Create a new conversation |
+| `/api/conversations/<id>` | GET | Get a single conversation |
+| `/api/conversations/<id>` | DELETE | Delete a conversation |
+| `/api/conversations/<id>/init` | POST | Initialize ACP session and send first prompt |
+| `/api/conversations/<id>/prompt` | POST | Send a follow-up prompt |
+| `/api/conversations/<id>/cancel` | POST | Cancel a running agent turn |
+| `/api/ask/<id>` | POST | Submit an answer to a pending ask-tool request |
+| `/api/sidechannel` | POST | Internal endpoint for ACP subprocess callbacks |
+| `/api/events` | GET | SSE stream for real-time updates |
