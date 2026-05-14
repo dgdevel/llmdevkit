@@ -237,7 +237,11 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 			}
 			switch status {
 			case "completed":
-				stream.CompleteToolCall(promptCtx, acpTCID, acp.NewToolCallContentContent(acp.NewContentBlockText(content)))
+				displayContent := content
+				if displayContent == "" {
+					displayContent = "(no output)"
+				}
+				stream.CompleteToolCall(promptCtx, acpTCID, acp.NewToolCallContentContent(acp.NewContentBlockText(displayContent)))
 			case "failed":
 				stream.FailToolCall(promptCtx, acpTCID)
 			}

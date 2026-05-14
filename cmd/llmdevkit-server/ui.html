@@ -1028,6 +1028,7 @@ async function answerAsk(askId, answer) {
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify({type:'open_ended', answer})
   });
+  markAskAnswered(askId, false, answer);
 }
 
 function answerExec(askId, approved) {
