@@ -200,6 +200,7 @@ let running = false;
 let pendingAsk = null; // {id, type, params, resolve, reject}
 let setupResolve = null;
 let taskEntries = []; // [{id, content, status, priority}]
+let toolCallIdToName = {}; // toolCallId -> tool name (from tool_request)
 let toolDefsCache = {}; // agentName -> [{name, description, parameters}]
 let tokenStats = {prompt_tokens:0, completion_tokens:0, total_tokens:0, llm_calls:0};
 let _renderScheduled = false;
@@ -254,9 +255,32 @@ async function selectConversation(id) {
   if (conv) {
     document.getElementById('agentSelect').value = conv.agent || agents[0]?.name || '';
     if (conv.agent) await loadToolDefs(conv.agent);
+    rebuildTaskState(conv);
     renderMessages(conv);
     updateState(conv);
   }
+}
+
+// Rebuild toolCallIdToName map and taskEntries from conversation history
+function rebuildTaskState(conv) {
+  toolCallIdToName = {};
+  taskEntries = [];
+  if (!conv?.messages) return;
+  for (const m of conv.messages) {
+    if (m.type === 'tool_request') {
+      try {
+        const parsed = JSON.parse(m.content);
+        const tcId = parsed.toolCallId || parsed.toolCallID || parsed.id;
+        const tcName = parsed.name || parsed.title || m.name;
+        if (tcId) toolCallIdToName[tcId] = tcName;
+      } catch(e) {}
+    }
+    if (m.type === 'tool_response') {
+      const realToolName = toolCallIdToName[m.name] || m.name;
+      updateTasksFromToolResponse(realToolName, m.content);
+    }
+  }
+  renderTaskList();
 }
 
 async function deleteConversation(id) {
@@ -600,6 +624,7 @@ async function sendPrompt() {
     if (idx >= 0) conversations[idx] = conv;
     running = true;
     taskEntries = [];
+    toolCallIdToName = {};
     renderTaskList();
     if (conv.agent) await loadToolDefs(conv.agent);
     renderMessages(conv);
@@ -612,6 +637,7 @@ async function sendPrompt() {
   renderMessages(conv);
   running = true;
   taskEntries = [];
+  toolCallIdToName = {};
   renderTaskList();
   updateState(conv);
 
@@ -769,13 +795,22 @@ function handleSessionUpdate(conv, bubble) {
   // Tool calls — track as tasks
   if (bubble.type === 'tool_request') {
     conv.messages.push({type:'tool_request', name: bubble.name, content: bubble.content});
+    // Map toolCallId → tool name for later tool_response correlation
+    try {
+      const parsed = JSON.parse(bubble.content);
+      const tcId = parsed.toolCallId || parsed.toolCallID || parsed.id;
+      const tcName = parsed.name || parsed.title || bubble.name;
+      if (tcId) toolCallIdToName[tcId] = tcName;
+    } catch(e) {}
     return;
   }
 
   if (bubble.type === 'tool_response') {
     conv.messages.push({type:'tool_response', name: bubble.name, content: bubble.content});
+    // Resolve real tool name from toolCallId→name map
+    const realToolName = toolCallIdToName[bubble.name] || bubble.name;
     // Parse task management tool responses
-    updateTasksFromToolResponse(bubble.name, bubble.content);
+    updateTasksFromToolResponse(realToolName, bubble.content);
     return;
   }
 
