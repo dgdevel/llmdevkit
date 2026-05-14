@@ -260,13 +260,24 @@ func (s *Server) resolveToolDefs(ctx context.Context, agentName string) ([]ToolD
 	for _, token := range agentCfg.ToolNames() {
 		switch token {
 		case "devkit":
-			// Use cached tool defs from ACP (sent via side channel) instead
-			// of spawning llmdevkit-mcp subprocess.
+			// Prefer cached tool defs from ACP side channel.
 			s.toolDefsMu.RLock()
 			cached := s.toolDefsCache["devkit"]
 			s.toolDefsMu.RUnlock()
 			if len(cached) > 0 {
 				defs = append(defs, cached...)
+			} else {
+				// Cache empty (ACP not started yet) — probe llmdevkit-mcp directly.
+				d, err := s.resolveMCPToolDefs(ctx, "llmdevkit-mcp", "")
+				if err != nil {
+					s.dlog.Log("resolveToolDefs devkit fallback: %v", err)
+				} else {
+					defs = append(defs, d...)
+					// Cache for subsequent calls.
+					s.toolDefsMu.Lock()
+					s.toolDefsCache["devkit"] = d
+					s.toolDefsMu.Unlock()
+				}
 			}
 		case "agents":
 			defs = append(defs,
