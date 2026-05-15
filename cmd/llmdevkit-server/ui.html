@@ -1,220 +1,167 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LLM DevKit</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#1e1e2e;--surface:#2a2a3c;--surface2:#33334a;--border:#444466;--text:#cdd6f4;--text2:#a6adc8;--accent:#89b4fa;--green:#a6e3a1;--red:#f38ba8;--yellow:#f9e2af;--mauve:#cba6f7;--peach:#fab387;--teal:#94e2d5}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
-/* Top bar */
-.topbar{display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--border);min-height:44px;flex-shrink:0}
-.topbar .brand{font-weight:700;color:var(--accent);font-size:14px}
-.topbar .state{font-size:13px;color:var(--text2);flex:1}
-.topbar .state .running{color:var(--green);font-weight:600}
-.topbar .llm-name{font-size:13px;color:var(--mauve)}
-.topbar button{background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px}
-.topbar button:hover{background:var(--border)}
-.topbar button.danger{border-color:var(--red);color:var(--red)}
-.topbar button.danger:hover{background:var(--red);color:var(--bg)}
-.topbar .token-pill{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:2px 10px;font-size:12px;color:var(--text2)}
-.topbar .token-pill .tok-in{color:var(--peach)}
-.topbar .token-pill .tok-out{color:var(--green)}
-.topbar .autoscroll-label{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none}
-.topbar .autoscroll-label input{accent-color:var(--accent)}
-/* Layout */
-.layout{display:flex;flex:1;overflow:hidden}
-/* Sidebar */
-.sidebar{width:260px;min-width:200px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
-.sidebar-section{padding:12px;border-bottom:1px solid var(--border)}
-.sidebar-section h3{font-size:11px;text-transform:uppercase;color:var(--text2);margin-bottom:8px;letter-spacing:0.5px}
-.sidebar-section select,.sidebar-section input{width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:6px 8px;border-radius:4px;font-size:13px}
-.sidebar-section select:focus,.sidebar-section input:focus{outline:none;border-color:var(--accent)}
-.conv-list{flex:1;overflow-y:auto;padding:4px}
-.conv-item{padding:8px 12px;border-radius:4px;cursor:pointer;font-size:13px;color:var(--text2);display:flex;justify-content:space-between;align-items:center}
-.conv-item:hover{background:var(--surface2)}
-.conv-item.active{background:var(--surface2);color:var(--accent)}
-.conv-item .del{display:none;background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0 4px}
-.conv-item:hover .del{display:block}
-.conv-item .status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-right:6px}
-.conv-item .status-dot.idle{background:var(--text2);opacity:0.4}
-.conv-item .status-dot.running{background:var(--green);animation:pulse-dot 1.5s ease-in-out infinite}
-@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.3}}
-.conv-item .conv-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.conv-item .conv-right{display:flex;align-items:center;gap:4px}
-.new-conv-btn{margin:8px 12px;padding:6px;background:var(--surface2);border:1px dashed var(--border);border-radius:4px;color:var(--text2);cursor:pointer;font-size:12px;text-align:center}
-.new-conv-btn:hover{border-color:var(--accent);color:var(--accent)}
-/* Main pane */
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.messages{flex:1;overflow-y:auto;padding:16px 24px;display:flex;flex-direction:column;gap:12px}
-/* Bubbles */
-.bubble{max-width:85%;padding:10px 14px;border-radius:10px;font-size:14px;line-height:1.5;word-wrap:break-word;position:relative}
-.bubble pre{background:var(--bg);padding:8px;border-radius:4px;overflow-x:auto;margin:6px 0;font-size:13px}
-.bubble code{background:var(--bg);padding:1px 4px;border-radius:3px;font-size:13px}
-.bubble pre code{background:none;padding:0}
-.bubble p{margin:4px 0}
-.bubble ul,.bubble ol{margin:4px 0 4px 20px}
-.bubble h1,.bubble h2,.bubble h3,.bubble h4{margin:8px 0 4px}
-.bubble table{border-collapse:collapse;margin:6px 0}
-.bubble th,.bubble td{border:1px solid var(--border);padding:4px 8px;font-size:13px}
-.bubble th{background:var(--surface2)}
-/* Bubble types */
-.bubble-system{background:var(--surface2);color:var(--text2);align-self:center;font-style:italic;font-size:13px;max-width:95%}
-.bubble-tools{background:var(--surface2);color:var(--teal);align-self:center;max-width:95%;font-size:13px}
-.bubble-tools .tool-box{display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;margin:2px;font-size:12px}
-.bubble-tools .tool-entry{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px 10px;margin:4px 0}
-.bubble-tools .tool-name{font-weight:600;color:var(--teal);font-family:monospace;font-size:12px}
-.bubble-tools .tool-desc{color:var(--text2);font-size:12px;margin:2px 0}
-.bubble-tools .tool-args{margin-top:3px}
-.bubble-tools .tool-arg{display:inline-block;background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin:1px;font-size:11px;font-family:monospace;color:var(--peach)}
-.bubble-user{background:#3b3b5c;align-self:flex-end;border-bottom-right-radius:2px}
-.bubble-llm{background:var(--surface2);align-self:flex-start;border-bottom-left-radius:2px}
-.bubble-thinking{background:transparent;border:1px dashed var(--border);color:var(--text2);align-self:flex-start;font-style:italic;font-size:13px}
-.bubble-tool-req{background:var(--surface2);border-left:3px solid var(--yellow);align-self:flex-start;font-size:13px;max-width:90%}
-.bubble-tool-resp{background:var(--surface2);border-left:3px solid var(--green);align-self:flex-start;font-size:13px;max-width:90%}
-.tool-args-table{border-collapse:collapse;margin:6px 0;width:100%}
-.tool-args-table td{padding:2px 8px;font-size:12px;border-bottom:1px solid var(--border)}
-.tool-args-table .arg-name{color:var(--peach);font-family:monospace;font-weight:600;white-space:nowrap;width:1%}
-.tool-args-table .arg-val{color:var(--text);word-break:break-all}
-.tool-meta{display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:0 5px;font-size:11px;color:var(--text2);margin-right:4px}
-.bubble-error{background:#3b2030;border-left:3px solid var(--red);color:var(--red);align-self:center}
-.bubble-label{font-size:11px;text-transform:uppercase;color:var(--text2);margin-bottom:4px;letter-spacing:0.5px;display:flex;align-items:center;gap:8px}
-.bubble-ts{font-size:10px;color:var(--text2);opacity:0.6;text-transform:none;letter-spacing:0;font-weight:400}
-.bubble-system .bubble-label{color:var(--mauve)}
-.bubble-user .bubble-label{color:var(--accent)}
-.bubble-llm .bubble-label{color:var(--green)}
-.bubble-thinking .bubble-label{color:var(--text2)}
-.bubble-tool-req .bubble-label{color:var(--yellow)}
-.bubble-tool-resp .bubble-label{color:var(--teal)}
-/* Collapsed bubbles */
-.bubble.collapsed .bubble-content{display:none}
-.bubble.collapsed .bubble-brief{display:block}
-.bubble .bubble-brief{display:none;color:var(--text2);font-size:12px;font-style:normal;font-weight:400;text-transform:none;letter-spacing:0;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
-.bubble.collapsible .bubble-label{cursor:pointer}
-.bubble{cursor:default}
-/* Ask tool panels */
-.ask-panel{background:var(--surface2);border:2px solid var(--accent);border-radius:8px;padding:14px;margin:8px 0;max-width:90%;align-self:center}
-.ask-panel .ask-title{font-weight:700;color:var(--accent);margin-bottom:8px;font-size:14px}
-.ask-panel textarea,.ask-panel input,.ask-panel select{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:8px;border-radius:4px;font-size:13px;font-family:inherit;margin:4px 0}
-.ask-panel textarea:focus,.ask-panel input:focus{outline:none;border-color:var(--accent)}
-.ask-panel .btn-row{display:flex;gap:8px;margin-top:8px}
-.ask-panel button{padding:6px 16px;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:13px}
-.ask-panel .btn-approve{background:var(--green);color:var(--bg);border-color:var(--green);font-weight:600}
-.ask-panel .btn-deny{background:var(--surface2);color:var(--red);border-color:var(--red)}
-.ask-panel .deny-reason{margin-top:8px}
-.ask-panel .choice-btn{display:inline-block;margin:3px;padding:4px 12px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:13px}
-.ask-panel .choice-btn:hover,.ask-panel .choice-btn.selected{background:var(--accent);color:var(--bg)}
-/* Input area */
-.input-area{padding:12px 24px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0}
-.input-row{display:flex;gap:8px;align-items:flex-end}
-.input-row textarea{flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:14px;font-family:inherit;resize:none;min-height:44px;max-height:200px}
-.input-row textarea:focus{outline:none;border-color:var(--accent)}
-.input-row button{padding:10px 20px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;white-space:nowrap}
-.input-row button:hover{opacity:0.9}
-.input-row button:disabled{opacity:0.4;cursor:not-allowed}
-/* Scrollbar */
+:root{--cat-bg:#1e1e2e;--cat-surface:#2a2a3c;--cat-surface2:#33334a;--cat-border:#444466;--cat-text:#cdd6f4;--cat-text2:#a6adc8;--cat-accent:#89b4fa;--cat-green:#a6e3a1;--cat-red:#f38ba8;--cat-yellow:#f9e2af;--cat-mauve:#cba6f7;--cat-peach:#fab387;--cat-teal:#94e2d5}
+html,body{height:100%;overflow:hidden;background:var(--cat-bg)}
 ::-webkit-scrollbar{width:6px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
-::-webkit-scrollbar-thumb:hover{background:var(--text2)}
-/* Setup modal */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:400px;max-width:600px}
-.modal h2{margin-bottom:16px;color:var(--accent)}
-.modal label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;margin-top:12px}
-.modal select,.modal textarea{width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:8px;border-radius:4px;font-size:13px;font-family:inherit}
-.modal textarea{min-height:100px}
-.modal .btn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
-.modal button{padding:8px 20px;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:13px}
-.modal .btn-primary{background:var(--accent);color:var(--bg);font-weight:600;border-color:var(--accent)}
-/* Task list */
-.task-list{padding:8px 12px;border-top:1px solid var(--border);max-height:200px;overflow-y:auto;flex-shrink:0}
-.task-list h3{font-size:11px;text-transform:uppercase;color:var(--text2);margin-bottom:6px;letter-spacing:0.5px}
-.task-item{font-size:12px;padding:3px 0;display:flex;align-items:baseline;gap:4px;color:var(--text2)}
-.task-item .task-icon{flex-shrink:0;width:14px;text-align:center}
-.task-item .task-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.task-item.pending .task-icon{color:var(--text2)}
-.task-item.in_progress .task-icon{color:var(--yellow)}
-.task-item.in_progress .task-text{color:var(--text)}
-.task-item.completed .task-icon{color:var(--green)}
-.task-item.failed .task-icon{color:var(--red)}
+::-webkit-scrollbar-thumb{background:var(--cat-border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--cat-text2)}
+.chat-layout{display:flex;flex-direction:column;height:100vh}
+.chat-body{display:flex;flex:1;overflow:hidden}
+.chat-sidebar{width:260px;min-width:200px;background:var(--cat-surface);border-right:1px solid var(--cat-border);display:flex;flex-direction:column;flex-shrink:0}
+.chat-main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.chat-messages{flex:1;overflow-y:auto;padding:1rem 1.5rem;display:flex;flex-direction:column;gap:.75rem}
+.bubble{max-width:85%;padding:.625rem .875rem;border-radius:.625rem;font-size:.875rem;line-height:1.5;word-wrap:break-word;position:relative}
+.bubble pre{background:var(--cat-bg);padding:.5rem;border-radius:.25rem;overflow-x:auto;margin:.375rem 0;font-size:.8125rem}
+.bubble code{background:var(--cat-bg);padding:1px 4px;border-radius:.1875rem;font-size:.8125rem}
+.bubble pre code{background:none;padding:0}
+.bubble p{margin:.25rem 0}
+.bubble ul,.bubble ol{margin:.25rem 0 .25rem 1.25rem}
+.bubble h1,.bubble h2,.bubble h3,.bubble h4{margin:.5rem 0 .25rem}
+.bubble table{border-collapse:collapse;margin:.375rem 0}
+.bubble th,.bubble td{border:1px solid var(--cat-border);padding:.25rem .5rem;font-size:.8125rem}
+.bubble th{background:var(--cat-surface2)}
+.bubble-system{background:var(--cat-surface2);color:var(--cat-text2);align-self:center;font-style:italic;font-size:.8125rem;max-width:95%}
+.bubble-tools{background:var(--cat-surface2);color:var(--cat-teal);align-self:center;max-width:95%;font-size:.8125rem}
+.bubble-tools .tool-box{display:inline-block;background:var(--cat-bg);border:1px solid var(--cat-border);border-radius:.25rem;padding:.25rem .5rem;margin:2px;font-size:.75rem}
+.bubble-tools .tool-entry{background:var(--cat-bg);border:1px solid var(--cat-border);border-radius:.25rem;padding:.375rem .625rem;margin:.25rem 0}
+.bubble-tools .tool-name{font-weight:600;color:var(--cat-teal);font-family:monospace;font-size:.75rem}
+.bubble-tools .tool-desc{color:var(--cat-text2);font-size:.75rem;margin:2px 0}
+.bubble-tools .tool-args{margin-top:.1875rem}
+.bubble-tools .tool-arg{display:inline-block;background:var(--cat-surface);border:1px solid var(--cat-border);border-radius:.1875rem;padding:1px 5px;margin:1px;font-size:.6875rem;font-family:monospace;color:var(--cat-peach)}
+.bubble-user{background:#3b3b5c;align-self:flex-end;border-bottom-right-radius:2px}
+.bubble-llm{background:var(--cat-surface2);align-self:flex-start;border-bottom-left-radius:2px}
+.bubble-thinking{background:transparent;border:1px dashed var(--cat-border);color:var(--cat-text2);align-self:flex-start;font-style:italic;font-size:.8125rem}
+.bubble-tool-req{background:var(--cat-surface2);border-left:3px solid var(--cat-yellow);align-self:flex-start;font-size:.8125rem;max-width:90%}
+.bubble-tool-resp{background:var(--cat-surface2);border-left:3px solid var(--cat-green);align-self:flex-start;font-size:.8125rem;max-width:90%}
+.bubble-error{background:#3b2030;border-left:3px solid var(--cat-red);color:var(--cat-red);align-self:center}
+.tool-args-table{border-collapse:collapse;margin:.375rem 0;width:100%}
+.tool-args-table td{padding:.125rem .5rem;font-size:.75rem;border-bottom:1px solid var(--cat-border)}
+.tool-args-table .arg-name{color:var(--cat-peach);font-family:monospace;font-weight:600;white-space:nowrap;width:1%}
+.tool-args-table .arg-val{color:var(--cat-text);word-break:break-all}
+.tool-meta{display:inline-block;background:var(--cat-bg);border:1px solid var(--cat-border);border-radius:.1875rem;padding:0 5px;font-size:.6875rem;color:var(--cat-text2);margin-right:4px}
+.bubble-label{font-size:.6875rem;text-transform:uppercase;color:var(--cat-text2);margin-bottom:.25rem;letter-spacing:.5px;display:flex;align-items:center;gap:.5rem}
+.bubble-ts{font-size:.625rem;color:var(--cat-text2);opacity:.6;text-transform:none;letter-spacing:0;font-weight:400}
+.bubble-system .bubble-label{color:var(--cat-mauve)}
+.bubble-user .bubble-label{color:var(--cat-accent)}
+.bubble-llm .bubble-label{color:var(--cat-green)}
+.bubble-thinking .bubble-label{color:var(--cat-text2)}
+.bubble-tool-req .bubble-label{color:var(--cat-yellow)}
+.bubble-tool-resp .bubble-label{color:var(--cat-teal)}
+.bubble.collapsed .bubble-content{display:none}
+.bubble.collapsed .bubble-brief{display:block}
+.bubble .bubble-brief{display:none;color:var(--cat-text2);font-size:.75rem;font-style:normal;font-weight:400;text-transform:none;letter-spacing:0;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.bubble.collapsible .bubble-label{cursor:pointer}
+.bubble{cursor:default}
+.ask-panel{background:var(--cat-surface2);border:2px solid var(--cat-accent);border-radius:.5rem;padding:.875rem;margin:.5rem 0;max-width:90%;align-self:center}
+.ask-panel .ask-title{font-weight:700;color:var(--cat-accent);margin-bottom:.5rem;font-size:.875rem}
+.ask-panel .choice-btn{display:inline-block;margin:3px;padding:.25rem .75rem;border-radius:.25rem;border:1px solid var(--cat-border);background:var(--cat-surface2);cursor:pointer;font-size:.8125rem;color:var(--cat-text)}
+.ask-panel .choice-btn:hover,.ask-panel .choice-btn.selected{background:var(--cat-accent);color:var(--cat-bg)}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+.status-dot.running{background:var(--cat-green);animation:pulse-dot 1.5s ease-in-out infinite}
+.status-dot.idle{background:var(--cat-text2);opacity:.4}
+.task-item.in_progress .task-icon{color:var(--cat-yellow)}
+.task-item.in_progress .task-text{color:var(--cat-text)}
+.task-item.completed .task-icon{color:var(--cat-green)}
+.task-item.failed .task-icon{color:var(--cat-red)}
 </style>
 </head>
 <body>
+<div class="chat-layout">
 <!-- Top bar -->
-<div class="topbar">
-  <span class="brand">LLM DevKit</span>
-  <span class="llm-name" id="llmName"></span>
-  <span class="state" id="stateInfo"></span>
-  <span class="token-pill" id="tokenPill" style="display:none">
-    <span class="tok-in" id="tokIn">↑0</span>
-    <span class="tok-out" id="tokOut">↓0</span>
+<nav class="d-flex align-items-center gap-3 px-3 py-2 border-bottom flex-shrink-0" style="background:var(--cat-surface);min-height:44px">
+  <span class="fw-bold" style="color:var(--cat-accent);font-size:.875rem">LLM DevKit</span>
+  <span class="small" style="color:var(--cat-mauve)" id="llmName"></span>
+  <span class="small flex-grow-1" style="color:var(--cat-text2)" id="stateInfo"></span>
+  <span class="d-none d-inline-flex align-items-center gap-2 border rounded-pill px-2 py-0 small" style="background:var(--cat-surface2);border-color:var(--cat-border)!important;color:var(--cat-text2)" id="tokenPill">
+    <span style="color:var(--cat-peach)" id="tokIn">↑0</span>
+    <span style="color:var(--cat-green)" id="tokOut">↓0</span>
   </span>
-  <label class="autoscroll-label"><input type="checkbox" id="autoscrollCheck" checked /> Autoscroll</label>
-  <button class="danger" id="cancelBtn" style="display:none" onclick="cancelSession()">⏹ Cancel</button>
-</div>
-<!-- Layout -->
-<div class="layout">
+  <div class="form-check form-switch mb-0 d-inline-flex align-items-center gap-1 small" style="color:var(--cat-text2)">
+    <input class="form-check-input" type="checkbox" id="autoscrollCheck" checked style="cursor:pointer">
+    <label class="form-check-label" for="autoscrollCheck" style="cursor:pointer;font-size:.75rem">Autoscroll</label>
+  </div>
+  <button class="btn btn-sm btn-outline-danger d-none" id="cancelBtn" onclick="cancelSession()">⏹ Cancel</button>
+</nav>
+<!-- Body -->
+<div class="chat-body">
   <!-- Sidebar -->
-  <div class="sidebar">
-    <div class="sidebar-section">
-      <h3>Agent</h3>
-      <select id="agentSelect" onchange="onAgentChange()"></select>
+  <div class="chat-sidebar">
+    <div class="p-3 border-bottom">
+      <h6 class="text-uppercase mb-2" style="font-size:.6875rem;letter-spacing:.5px;color:var(--cat-text2)">Agent</h6>
+      <select class="form-select form-select-sm" id="agentSelect" onchange="onAgentChange()"></select>
     </div>
-    <div class="sidebar-section" style="padding-bottom:4px">
-      <h3>Conversations</h3>
+    <div class="px-3 pt-3 pb-1 border-bottom">
+      <h6 class="text-uppercase mb-0" style="font-size:.6875rem;letter-spacing:.5px;color:var(--cat-text2)">Conversations</h6>
     </div>
-    <div class="conv-list" id="convList"></div>
-    <div class="new-conv-btn" onclick="newConversation()">+ New Conversation</div>
-    <div class="task-list" id="taskList" style="display:none">
-      <h3>Tasks</h3>
+    <div class="flex-grow-1 overflow-auto px-1 py-1" id="convList"></div>
+    <div class="mx-2 my-2 py-1 text-center rounded small" style="border:1px dashed var(--cat-border);color:var(--cat-text2);cursor:pointer;background:var(--cat-surface2)" onclick="newConversation()" onmouseover="this.style.borderColor='var(--cat-accent)';this.style.color='var(--cat-accent)'" onmouseout="this.style.borderColor='var(--cat-border)';this.style.color='var(--cat-text2)'">+ New Conversation</div>
+    <div class="border-top overflow-auto flex-shrink-0 px-3 py-2" id="taskList" style="display:none;max-height:200px">
+      <h6 class="text-uppercase mb-1" style="font-size:.6875rem;letter-spacing:.5px;color:var(--cat-text2)">Tasks</h6>
       <div id="taskItems"></div>
     </div>
   </div>
   <!-- Main pane -->
-  <div class="main">
-    <div class="messages" id="messages"></div>
-    <div class="input-area">
-      <div class="input-row">
-        <textarea id="promptInput" rows="1" placeholder="Type your prompt… (Enter to send, Shift+Enter for newline)" onkeydown="onPromptKey(event)" oninput="autoGrow(this)"></textarea>
-        <button id="sendBtn" onclick="sendPrompt()">▶ Send</button>
+  <div class="chat-main">
+    <div class="chat-messages" id="messages"></div>
+    <div class="px-3 py-2 border-top flex-shrink-0" style="background:var(--cat-surface)">
+      <div class="d-flex gap-2 align-items-end">
+        <textarea class="form-control flex-grow-1" id="promptInput" rows="1" placeholder="Type your prompt… (Enter to send, Shift+Enter for newline)" onkeydown="onPromptKey(event)" oninput="autoGrow(this)" style="background:var(--cat-bg);border-color:var(--cat-border);border-radius:.5rem;min-height:44px;max-height:200px;resize:none"></textarea>
+        <button class="btn fw-semibold text-nowrap" id="sendBtn" onclick="sendPrompt()" style="background:var(--cat-accent);color:var(--cat-bg);border-radius:.5rem;padding:.625rem 1.25rem;font-size:.875rem">▶ Send</button>
       </div>
     </div>
   </div>
 </div>
-<!-- Setup modal (shown for first message in new conversation) -->
-<div class="modal-overlay" id="setupModal" style="display:none">
-  <div class="modal">
-    <h2>Start Conversation</h2>
-    <label>Agent</label>
-    <select id="setupAgent"></select>
-    <label>System Prompt Override (optional)</label>
-    <textarea id="setupSysPrompt" placeholder="Leave empty to use agent default…"></textarea>
-    <div class="btn-row">
-      <button onclick="cancelSetup()">Cancel</button>
-      <button class="btn-primary" onclick="confirmSetup()">Start</button>
+</div>
+
+<!-- Setup modal (Bootstrap modal) -->
+<div class="modal fade" id="setupModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border" style="background:var(--cat-surface);border-color:var(--cat-border)!important">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title" style="color:var(--cat-accent)">Start Conversation</h5>
+      </div>
+      <div class="modal-body">
+        <label class="form-label small" style="color:var(--cat-text2)">Agent</label>
+        <select class="form-select form-select-sm mb-3" id="setupAgent"></select>
+        <label class="form-label small" style="color:var(--cat-text2)">System Prompt Override (optional)</label>
+        <textarea class="form-control form-control-sm" id="setupSysPrompt" rows="4" placeholder="Leave empty to use agent default…"></textarea>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cancelSetup()">Cancel</button>
+        <button type="button" class="btn btn-sm fw-semibold" style="background:var(--cat-accent);color:var(--cat-bg)" onclick="confirmSetup()">Start</button>
+      </div>
     </div>
   </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
 <script>
 // State
 let agents = [];
-let conversations = []; // [{id, agent, systemPrompt, messages:[], acpSessionId}]
+let conversations = [];
 let activeConvId = null;
 let running = false;
-let pendingAsk = null; // {id, type, params, resolve, reject}
+let pendingAsk = null;
 let setupResolve = null;
-let taskEntries = []; // [{id, content, status, priority}]
-let toolCallIdToName = {}; // toolCallId -> tool name (from tool_request)
-let toolDefsCache = {}; // agentName -> [{name, description, parameters}]
+let taskEntries = [];
+let toolCallIdToName = {};
+let toolDefsCache = {};
 let tokenStats = {prompt_tokens:0, completion_tokens:0, total_tokens:0, llm_calls:0};
 let _renderScheduled = false;
 let _streamUpdateScheduled = false;
+let setupModalEl = null;
 
 // Init
 window.onload = async () => {
+  setupModalEl = new bootstrap.Modal(document.getElementById('setupModal'));
   await loadAgents();
   await loadConversations();
   renderConvList();
@@ -249,11 +196,21 @@ function renderConvList() {
     const active = c.id === activeConvId ? ' active' : '';
     const label = c.title || c.id.slice(0,8);
     const statusCls = c.running ? 'running' : 'idle';
-    el.innerHTML += `<div class="conv-item${active}" onclick="selectConversation('${c.id}')">
-      <span class="status-dot ${statusCls}"></span>
-      <span class="conv-label">${esc(label)}</span>
-      <span class="conv-right"><button class="del" onclick="event.stopPropagation();deleteConversation('${c.id}')">×</button></span>
+    el.innerHTML += `<div class="conv-item d-flex justify-content-between align-items-center rounded px-2 py-1 small${active}" style="cursor:pointer;color:var(--cat-text2);${active?'background:var(--cat-surface2);color:var(--cat-accent);font-weight:600':''}" data-id="${c.id}">
+      <div class="d-flex align-items-center gap-1 flex-grow-1 overflow-hidden">
+        <span class="status-dot ${statusCls}" style="width:8px;height:8px;border-radius:50%;flex-shrink:0"></span>
+        <span class="overflow-hidden" style="text-overflow:ellipsis;white-space:nowrap">${esc(label)}</span>
+      </div>
+      <button class="btn btn-sm p-0 border-0 conv-del" style="color:var(--cat-red);font-size:1rem;line-height:1;display:none">×</button>
     </div>`;
+  });
+  // Event delegation
+  el.querySelectorAll('.conv-item').forEach(item => {
+    item.addEventListener('click', () => selectConversation(item.dataset.id));
+    const btn = item.querySelector('.conv-del');
+    btn.addEventListener('click', e => { e.stopPropagation(); deleteConversation(item.dataset.id); });
+    item.addEventListener('mouseenter', () => { btn.style.display='block'; if(!item.classList.contains('active'))item.style.background='var(--cat-surface2)'; });
+    item.addEventListener('mouseleave', () => { btn.style.display='none'; if(!item.classList.contains('active'))item.style.background=''; });
   });
 }
 
@@ -270,7 +227,6 @@ async function selectConversation(id) {
   }
 }
 
-// Rebuild toolCallIdToName map and taskEntries from conversation history
 function rebuildTaskState(conv) {
   toolCallIdToName = {};
   taskEntries = [];
@@ -305,29 +261,27 @@ async function deleteConversation(id) {
 }
 
 async function newConversation() {
-  // Show setup modal
-  document.getElementById('setupModal').style.display = 'flex';
   document.getElementById('setupAgent').value = document.getElementById('agentSelect').value;
   document.getElementById('setupSysPrompt').value = '';
+  setupModalEl.show();
   return new Promise(r => { setupResolve = r; });
 }
 
 function cancelSetup() {
-  document.getElementById('setupModal').style.display = 'none';
+  setupModalEl.hide();
   setupResolve = null;
 }
 
 async function confirmSetup() {
   const agent = document.getElementById('setupAgent').value;
   const sysPrompt = document.getElementById('setupSysPrompt').value;
-  document.getElementById('setupModal').style.display = 'none';
+  setupModalEl.hide();
   const r = await fetch('/api/conversations', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify({agent, system_prompt: sysPrompt})
   });
   const conv = await r.json();
-  // Avoid duplicate if SSE conversation_created already added it
   const existingIdx = conversations.findIndex(c => c.id === conv.id);
   if (existingIdx >= 0) {
     conversations[existingIdx] = conv;
@@ -340,9 +294,7 @@ async function confirmSetup() {
   if (setupResolve) setupResolve(conv);
 }
 
-function onAgentChange() {
-  // Just update sidebar display; actual agent used at conversation level
-}
+function onAgentChange() {}
 
 async function loadToolDefs(agentName) {
   if (toolDefsCache[agentName]) return toolDefsCache[agentName];
@@ -365,7 +317,7 @@ function updateState(conv) {
   const llmEl = document.getElementById('llmName');
   if (!conv) {
     stateEl.innerHTML = '';
-    cancelBtn.style.display = 'none';
+    cancelBtn.classList.add('d-none');
     sendBtn.disabled = true;
     llmEl.textContent = '';
     updateTokenPill();
@@ -376,15 +328,14 @@ function updateState(conv) {
   llmEl.textContent = ag?.llm || agentName;
   const isRunning = conv.running || false;
   if (isRunning) {
-    stateEl.innerHTML = '<span class="running">● Running</span>';
-    cancelBtn.style.display = '';
+    stateEl.innerHTML = '<span style="color:var(--cat-green);font-weight:600">● Running</span>';
+    cancelBtn.classList.remove('d-none');
     sendBtn.disabled = true;
   } else {
     stateEl.textContent = 'Idle';
-    cancelBtn.style.display = 'none';
+    cancelBtn.classList.add('d-none');
     sendBtn.disabled = false;
   }
-  // Show token stats from conversation
   if (conv.token_stats) {
     tokenStats = conv.token_stats;
   }
@@ -396,25 +347,24 @@ function updateTokenPill() {
   const tokIn = document.getElementById('tokIn');
   const tokOut = document.getElementById('tokOut');
   if (tokenStats.total_tokens > 0) {
-    pill.style.display = '';
+    pill.classList.remove('d-none');
+    pill.classList.add('d-inline-flex');
     tokIn.textContent = '↑' + tokenStats.prompt_tokens;
     tokOut.textContent = '↓' + tokenStats.completion_tokens;
   } else {
-    pill.style.display = 'none';
+    pill.classList.add('d-none');
+    pill.classList.remove('d-inline-flex');
   }
 }
 
-// Render messages as bubbles
 function renderMessages(conv) {
   const el = document.getElementById('messages');
   el.innerHTML = '';
   if (!conv) return;
-  // System prompt bubble
   if (conv.system_prompt) {
     const spBrief = briefText(conv.system_prompt);
     el.innerHTML += bubbleHTML('system', 'System Prompt', md(conv.system_prompt), true, true, spBrief);
   }
-  // Tools list bubble with individual tool defs
   const defs = toolDefsCache[conv.agent] || [];
   if (defs.length > 0) {
     let toolsHTML = defs.map(t => {
@@ -437,7 +387,6 @@ function renderMessages(conv) {
     const toolsHTML = conv.tools.map(t => `<span class="tool-box">${esc(t)}</span>`).join(' ');
     el.innerHTML += bubbleHTML('tools', 'Available Tools', toolsHTML, true, true, conv.tools.join(', '));
   }
-  // Messages
   (conv.messages || []).forEach(m => {
     el.innerHTML += renderBubble(m);
   });
@@ -467,16 +416,13 @@ function renderToolRequest(m) {
   if (parsed) {
     if (parsed.title) title = esc(parsed.title);
     else if (parsed.name) title = esc(parsed.name);
-    // Build args table from the parsed content
     const argEntries = [];
-    // Look for arguments/input/rawInput object (ACP uses rawInput)
     let args = null;
     if (parsed.arguments && typeof parsed.arguments === 'object') args = parsed.arguments;
     else if (parsed.input && typeof parsed.input === 'object') args = parsed.input;
     else if (parsed.rawInput && typeof parsed.rawInput === 'object') args = parsed.rawInput;
     else if (typeof parsed.rawInput === 'string') { try { args = JSON.parse(parsed.rawInput); } catch(e2) {} }
     else if (parsed.params && typeof parsed.params === 'object') args = parsed.params;
-    // Last resort: treat all non-meta keys as args
     if (!args && typeof parsed === 'object') {
       const skip = new Set(['title','name','toolCallId','toolCallID','id','status','kind','content','_meta','locations','rawOutput','rawInput','arguments','input']);
       const candidates = Object.keys(parsed).filter(k => !skip.has(k));
@@ -501,7 +447,6 @@ function renderToolRequest(m) {
 
 function renderToolResponse(m) {
   let name = m.name || '';
-  // Resolve tool name from toolCallIdToName map if name looks like an ID
   if (m.id && toolCallIdToName[m.id]) name = toolCallIdToName[m.id];
   else if (toolCallIdToName[name]) name = toolCallIdToName[name];
   const brief = briefText(m.content);
@@ -572,7 +517,6 @@ function scrollToBottom() {
   el.scrollTop = el.scrollHeight;
 }
 
-// Throttled render: coalesce rapid updates into a single rAF
 function scheduleRender(conv) {
   if (_renderScheduled) return;
   _renderScheduled = true;
@@ -586,7 +530,6 @@ function scheduleRender(conv) {
   });
 }
 
-// Incremental update for streaming text: only update last bubble DOM
 function updateStreamingBubble(conv) {
   const el = document.getElementById('messages');
   const last = conv.messages[conv.messages.length - 1];
@@ -612,7 +555,6 @@ function onPromptKey(e) {
     e.preventDefault();
     sendPrompt();
   }
-  // Shift+Enter inserts newline (default behavior)
 }
 
 async function sendPrompt() {
@@ -624,13 +566,11 @@ async function sendPrompt() {
 
   let conv = getActiveConv();
   if (!conv) {
-    // Force new conversation via modal
     await newConversation();
     conv = getActiveConv();
     if (!conv) return;
   }
 
-  // First message needs session init
   if (!conv.acp_session_id) {
     const initR = await fetch('/api/conversations/' + conv.id + '/init', {
       method:'POST',
@@ -640,7 +580,6 @@ async function sendPrompt() {
     const data = await initR.json();
     if (data.error) { alert(data.error); return; }
     conv = data.conversation || conv;
-    // Update in list
     const idx = conversations.findIndex(c => c.id === conv.id);
     if (idx >= 0) conversations[idx] = conv;
     running = true;
@@ -654,7 +593,6 @@ async function sendPrompt() {
     return;
   }
 
-  // Send prompt to existing session
   conv.messages.push({type:'user', content: text});
   conv.running = true;
   renderMessages(conv);
@@ -698,7 +636,6 @@ async function cancelSession() {
   updateState(conv);
 }
 
-// SSE for real-time updates
 function connectSSE() {
   const es = new EventSource('/api/events');
   es.onmessage = (e) => {
@@ -711,7 +648,6 @@ function connectSSE() {
 }
 
 function handleEvent(ev) {
-  // Global events (no conversation_id)
   if (ev.event === 'conversation_created') {
     if (!conversations.find(c => c.id === ev.data?.id)) {
       conversations.unshift(ev.data);
@@ -731,7 +667,6 @@ function handleEvent(ev) {
   if (ev.event === 'conversation_updated') {
     const idx = conversations.findIndex(c => c.id === ev.data?.id);
     if (idx >= 0) {
-      // Merge: update metadata but keep local message state (_merging, answered, etc.)
       const local = conversations[idx];
       const remote = ev.data;
       Object.assign(local, {
@@ -787,7 +722,6 @@ function handleEvent(ev) {
       }
       break;
     case 'tool_request_update':
-      // Update the rawInput on an existing tool_request bubble
       if (ev.data && ev.data.toolCallId && ev.data.rawInput) {
         for (let i = conv.messages.length - 1; i >= 0; i--) {
           const m = conv.messages[i];
@@ -812,18 +746,12 @@ function handleEvent(ev) {
 }
 
 function handleSessionUpdate(conv, bubble) {
-  // bubble is a BubbleMessage from the server
   if (!bubble || !bubble.type) return;
-
-  // Skip ask types — handled by dedicated SSE event handlers to avoid double bubbles
   if (bubble.type === 'ask_open_ended' || bubble.type === 'ask_exec' || bubble.type === 'ask_multiple_choice') return;
-
-  // Merge streaming text bubbles
   if (bubble.type === 'llm' || bubble.type === 'thinking') {
     const last = conv.messages[conv.messages.length - 1];
     if (last && last.type === bubble.type && last._merging) {
       last.content += bubble.content;
-      // Incremental DOM update: avoid full re-render during streaming
       if (conv.id === activeConvId && updateStreamingBubble(conv)) {
         if (!_streamUpdateScheduled) {
           _streamUpdateScheduled = true;
@@ -840,11 +768,8 @@ function handleSessionUpdate(conv, bubble) {
     if (conv.id === activeConvId) scheduleRender(conv);
     return;
   }
-
-  // Tool calls — track as tasks
   if (bubble.type === 'tool_request') {
     conv.messages.push({type:'tool_request', name: bubble.name, content: bubble.content, timestamp: bubble.timestamp});
-    // Map toolCallId → tool name for later tool_response correlation
     try {
       const parsed = JSON.parse(bubble.content);
       const tcId = parsed.toolCallId || parsed.toolCallID || parsed.id;
@@ -853,111 +778,50 @@ function handleSessionUpdate(conv, bubble) {
     } catch(e) {}
     return;
   }
-
   if (bubble.type === 'tool_response') {
     conv.messages.push({type:'tool_response', name: bubble.name, id: bubble.id, content: bubble.content, timestamp: bubble.timestamp});
-    // Resolve real tool name from toolCallId→name map
     const lookupKey = bubble.id || bubble.name;
     const realToolName = toolCallIdToName[lookupKey] || bubble.name;
-    // Parse task management tool responses
     updateTasksFromToolResponse(realToolName, bubble.content);
     return;
   }
-
   if (bubble.type === 'error') {
     conv.messages.push({type:'error', content: bubble.content, timestamp: bubble.timestamp});
     return;
   }
-
-  // Fallback: push as-is
   conv.messages.push(bubble);
 }
 
-// Task tracking from tool responses
 function updateTasksFromToolResponse(toolName, content) {
   const lines = content.split('\n').filter(l => l.trim());
-  if (toolName === 'task_create') {
-    // Parse: "Created ID: 3\nCurrent Tasks:\n1. [ ] Fix something\n2. [X] Done thing"
-    // or: "Created ID: 2.1\nCurrent Tasks:\n1. [_] Working\n  2.1. [ ] Sub task"
+  const parseLine = (line) => {
+    const m = line.match(/^(\d+(?:\.\d+)*)\.\s*\[([ _Xx])\]\s*(.*)/);
+    if (!m) return null;
+    const statusChar = m[2];
+    let status = 'pending';
+    if (statusChar === '_') status = 'in_progress';
+    if (statusChar === 'X' || statusChar === 'x') status = 'completed';
+    return {id: m[1], content: m[3].trim(), status};
+  };
+
+  if (['task_create','task_set_status','task_delete'].includes(toolName)) {
     for (const line of lines) {
-      const m = line.match(/^(\d+(?:\.\d+)*)\.\s*\[([ _Xx])\]\s*(.*)/);
-      if (m) {
-        const id = m[1];
-        const statusChar = m[2];
-        const desc = m[3].trim();
-        let status = 'pending';
-        if (statusChar === '_' || statusChar === 'x' || statusChar === 'X') status = 'in_progress';
-        if (statusChar === 'X' || statusChar === 'x') status = 'completed';
-        const existing = taskEntries.find(t => t.id === id);
-        if (existing) {
-          existing.status = status;
-          existing.content = desc;
-        } else {
-          taskEntries.push({id, content: desc, status});
-        }
-      }
-    }
-  } else if (toolName === 'task_set_status') {
-    // Parse: "ID: 2 set to in_progress\nCurrent Tasks:\n..."
-    for (const line of lines) {
-      const m = line.match(/^(\d+(?:\.\d+)*)\.\s*\[([ _Xx])\]\s*(.*)/);
-      if (m) {
-        const id = m[1];
-        const statusChar = m[2];
-        const desc = m[3].trim();
-        let status = 'pending';
-        if (statusChar === '_') status = 'in_progress';
-        if (statusChar === 'X' || statusChar === 'x') status = 'completed';
-        const existing = taskEntries.find(t => t.id === id);
-        if (existing) {
-          existing.status = status;
-          existing.content = desc;
-        } else {
-          taskEntries.push({id, content: desc, status});
-        }
+      const entry = parseLine(line);
+      if (entry) {
+        const existing = taskEntries.find(t => t.id === entry.id);
+        if (existing) { existing.status = entry.status; existing.content = entry.content; }
+        else taskEntries.push(entry);
       }
     }
   } else if (toolName === 'tasks_list') {
-    // Full task list refresh
-    const parsed = [];
-    for (const line of lines) {
-      const m = line.match(/^(\d+(?:\.\d+)*)\.\s*\[([ _Xx])\]\s*(.*)/);
-      if (m) {
-        const statusChar = m[2];
-        let status = 'pending';
-        if (statusChar === '_') status = 'in_progress';
-        if (statusChar === 'X' || statusChar === 'x') status = 'completed';
-        parsed.push({id: m[1], content: m[3].trim(), status});
-      }
-    }
+    const parsed = lines.map(parseLine).filter(Boolean);
     if (parsed.length > 0) taskEntries = parsed;
   } else if (toolName === 'tasks_clear') {
     taskEntries = [];
-  } else if (toolName === 'task_delete') {
-    // Parse: "Deleted ID: 3\nCurrent Tasks:\n..."
-    for (const line of lines) {
-      const m = line.match(/^(\d+(?:\.\d+)*)\.\s*\[([ _Xx])\]\s*(.*)/);
-      if (m) {
-        const id = m[1];
-        const statusChar = m[2];
-        const desc = m[3].trim();
-        let status = 'pending';
-        if (statusChar === '_') status = 'in_progress';
-        if (statusChar === 'X' || statusChar === 'x') status = 'completed';
-        const existing = taskEntries.find(t => t.id === id);
-        if (existing) {
-          existing.status = status;
-          existing.content = desc;
-        } else {
-          taskEntries.push({id, content: desc, status});
-        }
-      }
-    }
   }
   renderTaskList();
 }
 
-// Task list rendering
 function renderTaskList() {
   const el = document.getElementById('taskItems');
   const container = document.getElementById('taskList');
@@ -969,14 +833,13 @@ function renderTaskList() {
   const icons = {pending: '○', in_progress: '◐', completed: '●', failed: '✕'};
   el.innerHTML = taskEntries.map(t => {
     const icon = icons[t.status] || '○';
-    return `<div class="task-item ${t.status}">
-      <span class="task-icon">${icon}</span>
-      <span class="task-text" title="${esc(t.content)}">${esc(t.content)}</span>
+    return `<div class="task-item ${t.status} d-flex align-items-baseline gap-1 small" style="color:var(--cat-text2);padding:2px 0">
+      <span class="task-icon flex-shrink-0" style="width:14px;text-align:center">${icon}</span>
+      <span class="task-text flex-grow-1 overflow-hidden" style="text-overflow:ellipsis;white-space:nowrap" title="${esc(t.content)}">${esc(t.content)}</span>
     </div>`;
   }).join('');
 }
 
-// Ask tool: open-ended
 function handleAskOpenEnded(conv, ev) {
   const msg = {type:'ask_open_ended', id: ev.data.ask_id, question: ev.data.question, answered: false, answer: ''};
   conv.messages.push(msg);
@@ -990,14 +853,13 @@ function renderAskOpenEnded(m) {
   return `<div class="ask-panel" id="ask-${m.id}">
     <div class="ask-title">💬 Question</div>
     <p>${md(m.question)}</p>
-    <textarea id="ask-input-${m.id}" rows="3" placeholder="Your answer…"></textarea>
-    <div class="btn-row">
-      <button class="btn-approve" onclick="answerAsk('${m.id}', document.getElementById('ask-input-${m.id}').value)">Submit</button>
+    <textarea class="form-control form-control-sm mb-2" id="ask-input-${m.id}" rows="3" placeholder="Your answer…" style="background:var(--cat-bg);border-color:var(--cat-border);color:var(--cat-text)"></textarea>
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm fw-semibold" style="background:var(--cat-green);color:var(--cat-bg);border-color:var(--cat-green)" onclick="answerAsk('${m.id}', document.getElementById('ask-input-${m.id}').value)">Submit</button>
     </div>
   </div>`;
 }
 
-// Ask tool: exec
 function handleAskExec(conv, ev) {
   const msg = {
     type:'ask_exec', id: ev.data.ask_id,
@@ -1016,23 +878,22 @@ function renderAskExec(m) {
   }
   return `<div class="ask-panel" id="ask-${m.id}">
     <div class="ask-title">⚡ Execute Command</div>
-    <label style="color:var(--text2);font-size:12px">Command:</label>
-    <input id="ask-cmd-${m.id}" value="${esc(m.cmdline)}" />
-    <label style="color:var(--text2);font-size:12px">Timeout (seconds):</label>
-    <input id="ask-timeout-${m.id}" type="number" value="${m.timeout}" min="1" />
-    <div class="btn-row">
-      <button class="btn-approve" onclick="answerExec('${m.id}', true)">Approve</button>
-      <button class="btn-deny" onclick="answerExec('${m.id}', false)">Deny</button>
+    <label class="form-label small mb-1" style="color:var(--cat-text2)">Command:</label>
+    <input class="form-control form-control-sm mb-2" id="ask-cmd-${m.id}" value="${esc(m.cmdline)}" style="background:var(--cat-bg);border-color:var(--cat-border);color:var(--cat-text)" />
+    <label class="form-label small mb-1" style="color:var(--cat-text2)">Timeout (seconds):</label>
+    <input class="form-control form-control-sm mb-2" type="number" id="ask-timeout-${m.id}" value="${m.timeout}" min="1" style="background:var(--cat-bg);border-color:var(--cat-border);color:var(--cat-text)" />
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm fw-semibold" style="background:var(--cat-green);color:var(--cat-bg);border-color:var(--cat-green)" onclick="answerExec('${m.id}', true)">Approve</button>
+      <button class="btn btn-sm btn-outline-danger" onclick="answerExec('${m.id}', false)">Deny</button>
     </div>
-    <div class="deny-reason" id="deny-row-${m.id}" style="display:none">
-      <label style="color:var(--text2);font-size:12px">Reason for denial (optional):</label>
-      <input id="ask-deny-${m.id}" placeholder="Explain to the agent…" />
-      <button class="btn-deny" onclick="submitDeny('${m.id}')" style="margin-top:4px">Submit Deny</button>
+    <div class="mt-2 d-none" id="deny-row-${m.id}">
+      <label class="form-label small mb-1" style="color:var(--cat-text2)">Reason for denial (optional):</label>
+      <input class="form-control form-control-sm mb-1" id="ask-deny-${m.id}" placeholder="Explain to the agent…" style="background:var(--cat-bg);border-color:var(--cat-border);color:var(--cat-text)" />
+      <button class="btn btn-sm btn-outline-danger" onclick="submitDeny('${m.id}')">Submit Deny</button>
     </div>
   </div>`;
 }
 
-// Ask tool: multiple choice
 function handleAskMultipleChoice(conv, ev) {
   const msg = {
     type:'ask_multiple_choice', id: ev.data.ask_id,
@@ -1054,8 +915,8 @@ function renderAskMultipleChoice(m) {
   ).join('');
   let openEnd = '';
   if (m.allow_open_ended) {
-    openEnd = `<div style="margin-top:8px">
-      <input id="ask-custom-${m.id}" placeholder="Type your own response…" style="width:calc(100% - 80px)" />
+    openEnd = `<div class="mt-2 d-flex gap-2">
+      <input class="form-control form-control-sm flex-grow-1" id="ask-custom-${m.id}" placeholder="Type your own response…" style="background:var(--cat-bg);border-color:var(--cat-border);color:var(--cat-text)" />
       <button class="choice-btn" onclick="answerCustom('${m.id}')">Submit</button>
     </div>`;
   }
@@ -1067,7 +928,6 @@ function renderAskMultipleChoice(m) {
   </div>`;
 }
 
-// Answer handlers
 async function answerAsk(askId, answer) {
   await fetch('/api/ask/' + askId, {
     method:'POST',
@@ -1086,10 +946,9 @@ function answerExec(askId, approved) {
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({type:'exec', approved:true, cmdline:cmd, timeout})
     });
-    // Update local
     markAskAnswered(askId, true, cmd);
   } else {
-    document.getElementById('deny-row-' + askId).style.display = 'block';
+    document.getElementById('deny-row-' + askId).classList.remove('d-none');
   }
 }
 
