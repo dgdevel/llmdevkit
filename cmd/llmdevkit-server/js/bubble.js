@@ -1,6 +1,9 @@
 import { esc, formatTime } from './utils.js';
 import { S } from './state.js';
 
+// Lazy content store: bubble ID → HTML string
+const lazyContent = new Map();
+
 export function bubbleHTML(cls, label, content, raw, collapsed, brief, timestamp) {
   const id = 'bc-' + (S._bubbleId++);
   const briefHtml = (collapsed && brief) ? `<span class="brief-badge badge text-bg-secondary fw-normal text-truncate ms-2" style="max-width:250px">${brief}</span>` : '';
@@ -30,10 +33,38 @@ export function bubbleHTML(cls, label, content, raw, collapsed, brief, timestamp
 
   let body;
   if (collapsed) {
-    body = `<div class="collapse" id="${id}"><div class="card-body bubble-content py-2 px-3 small">${content}</div></div>`;
+    // Lazy: store content, render empty placeholder
+    lazyContent.set(id, content);
+    body = `<div class="collapse" id="${id}"><div class="card-body bubble-content py-2 px-3 small"></div></div>`;
   } else {
     body = `<div class="card-body bubble-content py-2 px-3 small">${content}</div>`;
   }
 
   return `<div class="${cardCls} ${align}" style="max-width:${maxW}">${header}${body}</div>`;
+}
+
+export function clearLazyContent() {
+  lazyContent.clear();
+}
+
+// Fill lazy content into a bubble-content element
+export function populateLazy(el) {
+  const collapseEl = el.closest('.collapse');
+  if (!collapseEl) return;
+  const id = collapseEl.id;
+  const html = lazyContent.get(id);
+  if (html !== undefined) {
+    el.innerHTML = html;
+    lazyContent.delete(id);
+  }
+}
+
+// Initialize lazy-load on collapse show events
+export function initLazyExpand() {
+  document.getElementById('messages').addEventListener('show.bs.collapse', e => {
+    const contentEl = e.target.querySelector('.bubble-content');
+    if (contentEl && !contentEl.innerHTML.trim()) {
+      populateLazy(contentEl);
+    }
+  });
 }

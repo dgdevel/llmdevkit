@@ -5,6 +5,7 @@ import { getActiveConv, loadToolDefs, newConversation } from './conversation.js'
 import { updateState } from './state-ui.js';
 import { renderMessages, scrollToBottom } from './messages.js';
 import { renderTaskList } from './tasks.js';
+import { populateLazy } from './bubble.js';
 
 export function scheduleRender(conv) {
   if (S._renderScheduled) return;
@@ -28,6 +29,8 @@ export function updateStreamingBubble(conv) {
   if (!lastBubble) return false;
   const contentEl = lastBubble.querySelector('.bubble-content');
   if (!contentEl) return false;
+  // Populate lazy content before streaming update
+  if (!contentEl.innerHTML.trim()) populateLazy(contentEl);
   contentEl.innerHTML = md(last.content);
   const briefEl = lastBubble.querySelector('.brief-badge');
   if (briefEl) briefEl.textContent = briefText(last.content);
@@ -123,4 +126,33 @@ export async function cancelSession() {
   renderTaskList();
   renderConvList();
   updateState(conv);
+}
+
+export async function undoLastPrompt() {
+  const conv = getActiveConv();
+  if (!conv) return;
+  if (conv.running) { alert('Cannot undo while conversation is running.'); return; }
+  const hasUser = (conv.messages || []).some(m => m.type === 'user');
+  if (!hasUser) { alert('Nothing to undo.'); return; }
+  if (!confirm('Delete conversation from the last user message onward?')) return;
+  try {
+    const r = await fetch('/api/conversations/' + conv.id + '/undo', {method:'POST'});
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      alert(data.error || 'Undo failed');
+      return;
+    }
+    const data = await r.json();
+    if (data.conversation) {
+      Object.assign(conv, data.conversation);
+    }
+    S.taskEntries = [];
+    S.toolCallIdToName = {};
+    renderMessages(conv);
+    renderConvList();
+    updateState(conv);
+    scrollToBottom();
+  } catch(e) {
+    alert('Undo error: ' + e.message);
+  }
 }

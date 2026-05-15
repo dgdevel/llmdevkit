@@ -1,11 +1,12 @@
 import { S } from './state.js';
 import { esc, md, briefText } from './utils.js';
-import { bubbleHTML } from './bubble.js';
+import { bubbleHTML, clearLazyContent, populateLazy } from './bubble.js';
 import { renderAskOpenEnded, renderAskExec, renderAskMultipleChoice } from './asks.js';
 
 export function renderMessages(conv) {
   const el = document.getElementById('messages');
   el.innerHTML = '';
+  clearLazyContent();
   S._bubbleId = 0;
   if (!conv) return;
   if (conv.system_prompt) {

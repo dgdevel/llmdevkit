@@ -475,6 +475,8 @@ func (s *Server) handleConversationActions(w http.ResponseWriter, r *http.Reques
 		s.handleConvCancel(w, r, convID)
 	case "rename":
 		s.handleConvRename(w, r, convID)
+	case "undo":
+		s.handleConvUndo(w, r, convID)
 	default:
 		http.Error(w, "unknown action", 404)
 	}
@@ -672,6 +674,96 @@ func (s *Server) handleConvRename(w http.ResponseWriter, r *http.Request, convID
 	s.appendJSONL(convID, "conversation_created", conv)
 	s.broadcastSSE("", "conversation_updated", conv)
 	writeJSON(w, map[string]string{"title": conv.Title})
+}
+
+func (s *Server) handleConvUndo(w http.ResponseWriter, r *http.Request, convID string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	s.mu.Lock()
+	conv, ok := s.convs[convID]
+	if !ok {
+		s.mu.Unlock()
+		http.Error(w, "not found", 404)
+		return
+	}
+	if conv.Running {
+		s.mu.Unlock()
+		http.Error(w, "conversation is running", 400)
+		return
+	}
+
+	// Find last user message index
+	lastUserIdx := -1
+	for i := len(conv.Messages) - 1; i >= 0; i-- {
+		if conv.Messages[i].Type == "user" {
+			lastUserIdx = i
+			break
+		}
+	}
+	if lastUserIdx < 0 {
+		s.mu.Unlock()
+		http.Error(w, "no user message to undo", 400)
+		return
+	}
+
+	// Cancel ACP session if active
+	if conv.ACPSessionID != "" {
+		s.acpMu.Lock()
+		s.acpConn.Cancel(context.Background(), &acp.CancelNotification{
+			SessionID: acp.SessionID(conv.ACPSessionID),
+		})
+		s.acpMu.Unlock()
+		conv.ACPSessionID = ""
+		conv.Initialized = false
+	}
+
+	// Truncate messages
+	conv.Messages = conv.Messages[:lastUserIdx]
+	conv.TokenStats = TokenStats{}
+	convCopy := *conv
+	convCopy.Messages = make([]BubbleMessage, len(conv.Messages))
+	copy(convCopy.Messages, conv.Messages)
+	s.mu.Unlock()
+
+	// Rewrite JSONL from scratch
+	s.rewriteJSONL(convID, conv)
+
+	s.broadcastSSE("", "conversation_updated", &convCopy)
+	writeJSON(w, conv)
+}
+
+func (s *Server) rewriteJSONL(convID string, conv *Conversation) {
+	f, err := os.Create(s.convFile(convID))
+	if err != nil {
+		log.Printf("rewrite jsonl %s: %v", convID, err)
+		return
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	// conversation_created
+	enc.Encode(jsonlLine{Type: "conversation_created", Payload: mustMarshal(conv)})
+
+	if conv.Initialized {
+		initPayload, _ := json.Marshal(map[string]interface{}{
+			"agent":         conv.Agent,
+			"acp_session":   conv.ACPSessionID,
+			"system_prompt": conv.SystemPrompt,
+			"tools":         conv.Tools,
+		})
+		enc.Encode(jsonlLine{Type: "init", Payload: initPayload})
+	}
+
+	for _, m := range conv.Messages {
+		enc.Encode(jsonlLine{Type: "bubble", Payload: mustMarshal(&m)})
+	}
+}
+
+func mustMarshal(v interface{}) json.RawMessage {
+	b, _ := json.Marshal(v)
+	return b
 }
 
 // ── ACP subprocess management ───────────────────────────────────────────────

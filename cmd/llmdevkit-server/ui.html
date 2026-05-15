@@ -76,6 +76,7 @@ html,body{height:100%;overflow:hidden}
       <div class="d-flex gap-2 align-items-end">
         <textarea class="form-control flex-grow-1 msg-input" id="promptInput" rows="1" placeholder="Type your prompt… (Enter to send, Shift+Enter for newline)" onkeydown="onPromptKey(event)" oninput="autoGrow(this)"></textarea>
         <button class="btn btn-primary text-nowrap" id="sendBtn" onclick="sendPrompt()">▶ Send</button>
+        <button class="btn btn-outline-secondary text-nowrap" id="undoBtn" onclick="undoLastPrompt()">↩ Undo</button>
       </div>
     </div>
   </div>
@@ -108,9 +109,10 @@ html,body{height:100%;overflow:hidden}
 import { S } from './js/state.js';
 import { loadAgents, loadConversations, renderConvList, selectConversation } from './js/sidebar.js';
 import { newConversation, cancelSetup, confirmSetup, onAgentChange } from './js/conversation.js';
-import { autoGrow, onPromptKey, sendPrompt, cancelSession } from './js/prompt.js';
+import { autoGrow, onPromptKey, sendPrompt, cancelSession, undoLastPrompt } from './js/prompt.js';
 import { connectSSE } from './js/events.js';
 import { answerAsk, answerExec, submitDeny, answerChoice, answerCustom } from './js/asks.js';
+import { initLazyExpand } from './js/bubble.js';
 
 // Expose to inline onclick handlers
 window.newConversation = newConversation;
@@ -121,6 +123,7 @@ window.autoGrow = autoGrow;
 window.onPromptKey = onPromptKey;
 window.sendPrompt = sendPrompt;
 window.cancelSession = cancelSession;
+window.undoLastPrompt = undoLastPrompt;
 window.answerAsk = answerAsk;
 window.answerExec = answerExec;
 window.submitDeny = submitDeny;
@@ -129,6 +132,7 @@ window.answerCustom = answerCustom;
 
 // Init
 S.setupModalEl = new bootstrap.Modal(document.getElementById('setupModal'));
+initLazyExpand();
 await loadAgents();
 await loadConversations();
 renderConvList();
