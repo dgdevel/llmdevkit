@@ -40,6 +40,7 @@ type BubbleMessage struct {
 	Content        string   `json:"content"`
 	Name           string   `json:"name,omitempty"`
 	ID             string   `json:"id,omitempty"`
+	Timestamp      string   `json:"timestamp,omitempty"`
 	Cmdline        string   `json:"cmdline,omitempty"`
 	Timeout        int      `json:"timeout,omitempty"`
 	Choices        []string `json:"choices,omitempty"`
@@ -514,8 +515,9 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 	}
 
 	conv.Messages = append(conv.Messages, BubbleMessage{
-		Type:    "user",
-		Content: req.Prompt,
+		Type:      "user",
+		Content:   req.Prompt,
+		Timestamp: nowISO(),
 	})
 
 	// Auto-title from first prompt
@@ -536,7 +538,7 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 		"system_prompt": conv.SystemPrompt,
 		"tools":         conv.Tools,
 	})
-	s.appendJSONL(convID, "bubble", BubbleMessage{Type: "user", Content: req.Prompt})
+	s.appendJSONL(convID, "bubble", BubbleMessage{Type: "user", Content: req.Prompt, Timestamp: nowISO()})
 	s.broadcastSSE(convID, "state", map[string]bool{"running": true})
 	// Snapshot conv for SSE broadcast — goroutine may modify conv concurrently
 	s.mu.Lock()
@@ -582,14 +584,15 @@ func (s *Server) handleConvPrompt(w http.ResponseWriter, r *http.Request, convID
 	}
 
 	s.mu.Lock()
-	conv.Messages = append(conv.Messages, BubbleMessage{Type: "user", Content: req.Prompt})
+	ts := nowISO()
+	conv.Messages = append(conv.Messages, BubbleMessage{Type: "user", Content: req.Prompt, Timestamp: ts})
 	// Snapshot for SSE broadcast under lock to avoid data race with goroutine
 	convCopy := *conv
 	convCopy.Messages = make([]BubbleMessage, len(conv.Messages))
 	copy(convCopy.Messages, conv.Messages)
 	s.mu.Unlock()
 
-	s.appendJSONL(convID, "bubble", BubbleMessage{Type: "user", Content: req.Prompt})
+	s.appendJSONL(convID, "bubble", BubbleMessage{Type: "user", Content: req.Prompt, Timestamp: ts})
 	s.broadcastSSE(convID, "state", map[string]bool{"running": true})
 	s.broadcastSSE("", "conversation_updated", &convCopy)
 
@@ -812,6 +815,10 @@ func (c *acpClientHandler) handleSessionUpdate(convID string, u acp.SessionUpdat
 		if tcu.Status != nil {
 			status = string(*tcu.Status)
 		}
+		// Handle rawInput update — update the tool_request bubble with arguments
+		if len(tcu.RawInput) > 0 {
+			c.server.updateToolRequestRawInput(convID, string(tcu.ToolCallID), tcu.RawInput)
+		}
 		if status == "completed" || status == "failed" {
 			var texts []string
 			for _, ct := range tcu.Content {
@@ -915,7 +922,7 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 		s.dlog.Log("runACPPrompt conv=%s new session created: %s", convID, conv.ACPSessionID)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
 
 	contentBlock := acp.NewContentBlockText(promptText)
@@ -930,8 +937,15 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 	s.acpMu.Unlock()
 
 	if err != nil {
+		errMsg := err.Error()
 		s.dlog.Log("runACPPrompt conv=%s Prompt RPC ERROR: %v", convID, err)
-		s.addBubble(convID, BubbleMessage{Type: "error", Content: fmt.Sprintf("ACP prompt error: %v", err)})
+		// If context deadline exceeded, the agent may still be running via async updates.
+		// Log as warning, don't block with error bubble.
+		if ctx.Err() == context.DeadlineExceeded || strings.Contains(errMsg, "deadline exceeded") {
+			s.addBubble(convID, BubbleMessage{Type: "error", Content: fmt.Sprintf("Warning: prompt RPC timed out (2h). Agent may still be working: %v", err)})
+		} else {
+			s.addBubble(convID, BubbleMessage{Type: "error", Content: fmt.Sprintf("ACP prompt error: %v", err)})
+		}
 	} else {
 		s.dlog.Log("runACPPrompt conv=%s Prompt RPC done, stop_reason=%s", convID, resp.StopReason)
 	}
@@ -947,7 +961,15 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 
 // ── Bubble management ───────────────────────────────────────────────────────
 
+// nowISO returns current time in ISO 8601 format.
+func nowISO() string {
+	return time.Now().Format(time.RFC3339)
+}
+
 func (s *Server) addBubble(convID string, b BubbleMessage) {
+	if b.Timestamp == "" {
+		b.Timestamp = nowISO()
+	}
 	s.dlog.Log("addBubble conv=%s type=%s content_len=%d", convID, b.Type, len(b.Content))
 	s.mu.Lock()
 	conv, ok := s.convs[convID]
@@ -975,6 +997,47 @@ func (s *Server) addBubble(convID string, b BubbleMessage) {
 
 	s.broadcastSSE(convID, "session_update", b)
 	s.appendJSONL(convID, "bubble", b)
+}
+
+// updateToolRequestRawInput finds the last tool_request bubble matching the
+// toolCallID and injects the rawInput (arguments) into its content JSON.
+func (s *Server) updateToolRequestRawInput(convID, toolCallID string, rawInput json.RawMessage) {
+	s.mu.Lock()
+	conv, ok := s.convs[convID]
+	if !ok {
+		s.mu.Unlock()
+		return
+	}
+	// Find the tool_request bubble for this toolCallID by scanning backwards
+	for i := len(conv.Messages) - 1; i >= 0; i-- {
+		m := &conv.Messages[i]
+		if m.Type == "tool_request" {
+			var parsed map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(m.Content), &parsed); err == nil {
+				if tcID, ok := parsed["toolCallId"]; ok {
+					var idStr string
+					json.Unmarshal(tcID, &idStr)
+					if idStr == toolCallID {
+						// Inject rawInput
+						parsed["rawInput"] = rawInput
+						updated, _ := json.Marshal(parsed)
+						m.Content = string(updated)
+						s.mu.Unlock()
+						s.broadcastSSE(convID, "tool_request_update", map[string]string{
+							"toolCallId": toolCallID,
+							"rawInput":   string(rawInput),
+						})
+						s.appendJSONL(convID, "tool_request_rawinput", map[string]string{
+							"toolCallId": toolCallID,
+							"rawInput":   string(rawInput),
+						})
+						return
+					}
+				}
+			}
+		}
+	}
+	s.mu.Unlock()
 }
 
 // ── Ask tool handling ───────────────────────────────────────────────────────

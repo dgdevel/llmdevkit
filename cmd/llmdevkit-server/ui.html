@@ -74,7 +74,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .tool-args-table .arg-val{color:var(--text);word-break:break-all}
 .tool-meta{display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:0 5px;font-size:11px;color:var(--text2);margin-right:4px}
 .bubble-error{background:#3b2030;border-left:3px solid var(--red);color:var(--red);align-self:center}
-.bubble-label{font-size:11px;text-transform:uppercase;color:var(--text2);margin-bottom:4px;letter-spacing:0.5px}
+.bubble-label{font-size:11px;text-transform:uppercase;color:var(--text2);margin-bottom:4px;letter-spacing:0.5px;display:flex;align-items:center;gap:8px}
+.bubble-ts{font-size:10px;color:var(--text2);opacity:0.6;text-transform:none;letter-spacing:0;font-weight:400}
 .bubble-system .bubble-label{color:var(--mauve)}
 .bubble-user .bubble-label{color:var(--accent)}
 .bubble-llm .bubble-label{color:var(--green)}
@@ -436,16 +437,16 @@ function renderMessages(conv) {
 
 function renderBubble(m) {
   switch(m.type) {
-    case 'user': return bubbleHTML('user', 'You', md(m.content), false, false);
-    case 'llm': return bubbleHTML('llm', 'Assistant', md(m.content), false, false);
-    case 'thinking': return bubbleHTML('thinking', 'Thinking', md(m.content), false, true, briefText(m.content));
+    case 'user': return bubbleHTML('user', 'You', md(m.content), false, false, null, m.timestamp);
+    case 'llm': return bubbleHTML('llm', 'Assistant', md(m.content), false, false, null, m.timestamp);
+    case 'thinking': return bubbleHTML('thinking', 'Thinking', md(m.content), false, true, briefText(m.content), m.timestamp);
     case 'tool_request': return renderToolRequest(m);
     case 'tool_response': return renderToolResponse(m);
     case 'ask_open_ended': return renderAskOpenEnded(m);
     case 'ask_exec': return renderAskExec(m);
     case 'ask_multiple_choice': return renderAskMultipleChoice(m);
-    case 'error': return bubbleHTML('error', 'Error', esc(m.content), false, true, briefText(m.content));
-    default: return bubbleHTML('system', m.type, esc(m.content||''), false, true, briefText(m.content));
+    case 'error': return bubbleHTML('error', 'Error', esc(m.content), false, true, briefText(m.content), m.timestamp);
+    default: return bubbleHTML('system', m.type, esc(m.content||''), false, true, briefText(m.content), m.timestamp);
   }
 }
 
@@ -486,7 +487,7 @@ function renderToolRequest(m) {
     }
   }
   const brief = briefToolReq(m);
-  return bubbleHTML('tool-req', `⚙ ${title}`, argsHTML, true, true, brief);
+  return bubbleHTML('tool-req', `⚙ ${title}`, argsHTML, true, true, brief, m.timestamp);
 }
 
 function renderToolResponse(m) {
@@ -496,7 +497,7 @@ function renderToolResponse(m) {
   else if (toolCallIdToName[name]) name = toolCallIdToName[name];
   const brief = briefText(m.content);
   const content = `<pre>${esc(m.content)}</pre>`;
-  return bubbleHTML('tool-resp', `📋 ${esc(name)}`, content, true, true, brief);
+  return bubbleHTML('tool-resp', `📋 ${esc(name)}`, content, true, true, brief, m.timestamp);
 }
 
 function briefText(s) {
@@ -528,14 +529,22 @@ function briefToolReq(m) {
   }
 }
 
-function bubbleHTML(cls, label, content, raw, collapsed, brief) {
+function bubbleHTML(cls, label, content, raw, collapsed, brief, timestamp) {
   const col = collapsed ? ' collapsed' : '';
   const coll = collapsed ? ' collapsible' : '';
   const briefLine = brief ? `<div class="bubble-brief">${brief}</div>` : '';
+  const tsLine = timestamp ? `<span class="bubble-ts">${formatTime(timestamp)}</span>` : '';
   return `<div class="bubble bubble-${cls}${col}${coll}">
-    <div class="bubble-label" onclick="this.parentElement.classList.toggle('collapsed')">${label}${briefLine}</div>
+    <div class="bubble-label" onclick="this.parentElement.classList.toggle('collapsed')">${label}${tsLine}${briefLine}</div>
     <div class="bubble-content">${raw ? content : content}</div>
   </div>`;
+}
+
+function formatTime(ts) {
+  try {
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  } catch(e) { return ''; }
 }
 
 function md(text) {
@@ -759,6 +768,25 @@ function handleEvent(ev) {
         updateTokenPill();
       }
       break;
+    case 'tool_request_update':
+      // Update the rawInput on an existing tool_request bubble
+      if (ev.data && ev.data.toolCallId && ev.data.rawInput) {
+        for (let i = conv.messages.length - 1; i >= 0; i--) {
+          const m = conv.messages[i];
+          if (m.type === 'tool_request') {
+            try {
+              const parsed = JSON.parse(m.content);
+              const tcId = parsed.toolCallId || parsed.toolCallID || parsed.id;
+              if (tcId === ev.data.toolCallId) {
+                parsed.rawInput = JSON.parse(ev.data.rawInput);
+                m.content = JSON.stringify(parsed);
+                break;
+              }
+            } catch(e) {}
+          }
+        }
+      }
+      break;
   }
   if (conv.id === activeConvId) {
     scheduleRender(conv);
@@ -789,7 +817,7 @@ function handleSessionUpdate(conv, bubble) {
         return;
       }
     } else {
-      conv.messages.push({type: bubble.type, content: bubble.content, _merging: true});
+      conv.messages.push({type: bubble.type, content: bubble.content, _merging: true, timestamp: bubble.timestamp});
     }
     if (conv.id === activeConvId) scheduleRender(conv);
     return;
@@ -797,7 +825,7 @@ function handleSessionUpdate(conv, bubble) {
 
   // Tool calls — track as tasks
   if (bubble.type === 'tool_request') {
-    conv.messages.push({type:'tool_request', name: bubble.name, content: bubble.content});
+    conv.messages.push({type:'tool_request', name: bubble.name, content: bubble.content, timestamp: bubble.timestamp});
     // Map toolCallId → tool name for later tool_response correlation
     try {
       const parsed = JSON.parse(bubble.content);
@@ -809,7 +837,7 @@ function handleSessionUpdate(conv, bubble) {
   }
 
   if (bubble.type === 'tool_response') {
-    conv.messages.push({type:'tool_response', name: bubble.name, id: bubble.id, content: bubble.content});
+    conv.messages.push({type:'tool_response', name: bubble.name, id: bubble.id, content: bubble.content, timestamp: bubble.timestamp});
     // Resolve real tool name from toolCallId→name map
     const lookupKey = bubble.id || bubble.name;
     const realToolName = toolCallIdToName[lookupKey] || bubble.name;
@@ -819,7 +847,7 @@ function handleSessionUpdate(conv, bubble) {
   }
 
   if (bubble.type === 'error') {
-    conv.messages.push({type:'error', content: bubble.content});
+    conv.messages.push({type:'error', content: bubble.content, timestamp: bubble.timestamp});
     return;
   }
 

@@ -218,15 +218,25 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 	tcIDMap := make(map[string]acp.ToolCallID)
 
 	r := runner.NewRunner(llmDef, agentCfg, registry, a.agentCfg,
+		runner.WithRootDir(a.rootDir),
 		runner.WithTextCallback(func(text string) {
 			stream.SendText(promptCtx, text)
 		}),
-		runner.WithToolStartCallback(func(id, title, kind string) {
+		runner.WithToolStartCallback(func(id, title, kind string, arguments json.RawMessage) {
 			acpTCID := acp.ToolCallID(fmt.Sprintf("tc_%d", toolCallCounter.Add(1)))
 			tcIDMu.Lock()
 			tcIDMap[id] = acpTCID
 			tcIDMu.Unlock()
 			stream.StartToolCall(promptCtx, acpTCID, title, acp.ToolKindExecute)
+			// Send rawInput update so the tool_call event carries arguments
+			if len(arguments) > 0 {
+				statusInProgress := acp.ToolCallStatusInProgress
+				stream.SendUpdate(promptCtx, acp.NewSessionUpdateToolCallUpdate(acp.ToolCallUpdate{
+					ToolCallID: acpTCID,
+					RawInput:   arguments,
+					Status:     &statusInProgress,
+				}))
+			}
 		}),
 		runner.WithToolUpdateCallback(func(id, status, content string) {
 			tcIDMu.Lock()
@@ -716,7 +726,7 @@ func (a *llmdevkitAgent) registerAgentTools(registry *runner.ToolRegistry) {
 				{Role: "user", Content: prompt},
 			}
 
-			r := runner.NewRunner(llmDef, subCfg, subRegistry, a.agentCfg)
+			r := runner.NewRunner(llmDef, subCfg, subRegistry, a.agentCfg, runner.WithRootDir(a.rootDir))
 			result, err := r.RunPrompt(ctx, messages, prompt)
 			if err != nil {
 				return "", fmt.Errorf("agent %q error: %w", agentName, err)

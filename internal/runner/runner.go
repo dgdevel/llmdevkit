@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"llmdevkit/internal/agents"
@@ -89,8 +91,9 @@ type Runner struct {
 	agent        *agents.AgentConfig
 	registry     *ToolRegistry
 	allAgents    *agents.Config // for agents_available / agent_invoke
+	rootDir      string         // project directory, for reading AGENTS.md
 	onText       func(text string)
-	onToolStart  func(id, title, kind string)
+	onToolStart  func(id, title, kind string, arguments json.RawMessage)
 	onToolUpdate func(id, status, content string)
 	onTokenStats func(TokenStats)
 }
@@ -101,7 +104,7 @@ func WithTextCallback(fn func(string)) Option {
 	return func(r *Runner) { r.onText = fn }
 }
 
-func WithToolStartCallback(fn func(id, title, kind string)) Option {
+func WithToolStartCallback(fn func(id, title, kind string, arguments json.RawMessage)) Option {
 	return func(r *Runner) { r.onToolStart = fn }
 }
 
@@ -111,6 +114,10 @@ func WithToolUpdateCallback(fn func(id, status, content string)) Option {
 
 func WithTokenStatsCallback(fn func(TokenStats)) Option {
 	return func(r *Runner) { r.onTokenStats = fn }
+}
+
+func WithRootDir(dir string) Option {
+	return func(r *Runner) { r.rootDir = dir }
 }
 
 func NewRunner(llmCfg *llms.LLMConfig, agentCfg *agents.AgentConfig, registry *ToolRegistry, allAgents *agents.Config, opts ...Option) *Runner {
@@ -206,6 +213,13 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 	}
 
 	systemMsg := ChatMessage{Role: "system", Content: r.agent.SystemPrompt}
+	// Append AGENTS.md content if present (read fresh each time, not cached)
+	if r.rootDir != "" {
+		agentsMD, err := os.ReadFile(filepath.Join(r.rootDir, "AGENTS.md"))
+		if err == nil && len(agentsMD) > 0 {
+			systemMsg.Content += "\n\n" + string(agentsMD)
+		}
+	}
 	fullMessages := append([]ChatMessage{systemMsg}, messages...)
 	var stats TokenStats
 	// Emit final token stats once when the turn completes
@@ -265,7 +279,7 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 
 		for _, tc := range assistantMsg.ToolCalls {
 			if r.onToolStart != nil {
-				r.onToolStart(tc.ID, tc.Function.Name, "other")
+				r.onToolStart(tc.ID, tc.Function.Name, "other", tc.Function.Arguments)
 			}
 			if r.onToolUpdate != nil {
 				r.onToolUpdate(tc.ID, "in_progress", "")
