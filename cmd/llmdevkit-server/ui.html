@@ -7,135 +7,96 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
-:root{--cat-bg:#1e1e2e;--cat-surface:#2a2a3c;--cat-surface2:#33334a;--cat-border:#444466;--cat-text:#cdd6f4;--cat-text2:#a6adc8;--cat-accent:#89b4fa;--cat-green:#a6e3a1;--cat-red:#f38ba8;--cat-yellow:#f9e2af;--cat-mauve:#cba6f7;--cat-peach:#fab387;--cat-teal:#94e2d5}
-html,body{height:100%;overflow:hidden;background:var(--cat-bg)}
+html,body{height:100%;overflow:hidden}
+.border-dashed{border-style:dashed!important}
+.sidebar{width:260px;min-width:200px}
+.msg-input{min-height:44px;max-height:200px;resize:none}
 ::-webkit-scrollbar{width:6px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--cat-border);border-radius:3px}
-::-webkit-scrollbar-thumb:hover{background:var(--cat-text2)}
-.chat-layout{display:flex;flex-direction:column;height:100vh}
-.chat-body{display:flex;flex:1;overflow:hidden}
-.chat-sidebar{width:260px;min-width:200px;background:var(--cat-surface);border-right:1px solid var(--cat-border);display:flex;flex-direction:column;flex-shrink:0}
-.chat-main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.chat-messages{flex:1;overflow-y:auto;padding:1rem 1.5rem;display:flex;flex-direction:column;gap:.75rem}
-.bubble{max-width:85%;padding:.625rem .875rem;border-radius:.625rem;font-size:.875rem;line-height:1.5;word-wrap:break-word;position:relative}
-.bubble pre{background:var(--cat-bg);padding:.5rem;border-radius:.25rem;overflow-x:auto;margin:.375rem 0;font-size:.8125rem}
-.bubble code{background:var(--cat-bg);padding:1px 4px;border-radius:.1875rem;font-size:.8125rem}
-.bubble pre code{background:none;padding:0}
-.bubble p{margin:.25rem 0}
-.bubble ul,.bubble ol{margin:.25rem 0 .25rem 1.25rem}
-.bubble h1,.bubble h2,.bubble h3,.bubble h4{margin:.5rem 0 .25rem}
-.bubble table{border-collapse:collapse;margin:.375rem 0}
-.bubble th,.bubble td{border:1px solid var(--cat-border);padding:.25rem .5rem;font-size:.8125rem}
-.bubble th{background:var(--cat-surface2)}
-.bubble-system{background:var(--cat-surface2);color:var(--cat-text2);align-self:center;font-style:italic;font-size:.8125rem;max-width:95%}
-.bubble-tools{background:var(--cat-surface2);color:var(--cat-teal);align-self:center;max-width:95%;font-size:.8125rem}
-.bubble-tools .tool-box{display:inline-block;background:var(--cat-bg);border:1px solid var(--cat-border);border-radius:.25rem;padding:.25rem .5rem;margin:2px;font-size:.75rem}
-.bubble-tools .tool-entry{background:var(--cat-bg);border:1px solid var(--cat-border);border-radius:.25rem;padding:.375rem .625rem;margin:.25rem 0}
-.bubble-tools .tool-name{font-weight:600;color:var(--cat-teal);font-family:monospace;font-size:.75rem}
-.bubble-tools .tool-desc{color:var(--cat-text2);font-size:.75rem;margin:2px 0}
-.bubble-tools .tool-args{margin-top:.1875rem}
-.bubble-tools .tool-arg{display:inline-block;background:var(--cat-surface);border:1px solid var(--cat-border);border-radius:.1875rem;padding:1px 5px;margin:1px;font-size:.6875rem;font-family:monospace;color:var(--cat-peach)}
-.bubble-user{background:#3b3b5c;align-self:flex-end;border-bottom-right-radius:2px}
-.bubble-llm{background:var(--cat-surface2);align-self:flex-start;border-bottom-left-radius:2px}
-.bubble-thinking{background:transparent;border:1px dashed var(--cat-border);color:var(--cat-text2);align-self:flex-start;font-style:italic;font-size:.8125rem}
-.bubble-tool-req{background:var(--cat-surface2);border-left:3px solid var(--cat-yellow);align-self:flex-start;font-size:.8125rem;max-width:90%}
-.bubble-tool-resp{background:var(--cat-surface2);border-left:3px solid var(--cat-green);align-self:flex-start;font-size:.8125rem;max-width:90%}
-.bubble-error{background:#3b2030;border-left:3px solid var(--cat-red);color:var(--cat-red);align-self:center}
+::-webkit-scrollbar-thumb{background:var(--bs-border-color);border-radius:3px}
+.bubble-content p{margin:.25rem 0}
+.bubble-content ul,.bubble-content ol{margin:.25rem 0 .25rem 1.25rem}
+.bubble-content h1,.bubble-content h2,.bubble-content h3,.bubble-content h4{margin:.5rem 0 .25rem}
+.bubble-content pre{padding:.5rem;border-radius:.25rem;overflow-x:auto;margin:.375rem 0;font-size:.8125rem}
+.bubble-content code{padding:1px 4px;border-radius:.1875rem;font-size:.8125rem}
+.bubble-content pre code{background:none;padding:0}
+.bubble-content table{border-collapse:collapse;margin:.375rem 0}
+.bubble-content th,.bubble-content td{border:1px solid var(--bs-border-color);padding:.25rem .5rem;font-size:.8125rem}
+.bubble-content th{background:var(--bs-tertiary-bg)}
 .tool-args-table{border-collapse:collapse;margin:.375rem 0;width:100%}
-.tool-args-table td{padding:.125rem .5rem;font-size:.75rem;border-bottom:1px solid var(--cat-border)}
-.tool-args-table .arg-name{color:var(--cat-peach);font-family:monospace;font-weight:600;white-space:nowrap;width:1%}
-.tool-args-table .arg-val{color:var(--cat-text);word-break:break-all}
-.tool-meta{display:inline-block;background:var(--cat-bg);border:1px solid var(--cat-border);border-radius:.1875rem;padding:0 5px;font-size:.6875rem;color:var(--cat-text2);margin-right:4px}
-.bubble-label{font-size:.6875rem;text-transform:uppercase;color:var(--cat-text2);margin-bottom:.25rem;letter-spacing:.5px;display:flex;align-items:center;gap:.5rem}
-.bubble-ts{font-size:.625rem;color:var(--cat-text2);opacity:.6;text-transform:none;letter-spacing:0;font-weight:400}
-.bubble-system .bubble-label{color:var(--cat-mauve)}
-.bubble-user .bubble-label{color:var(--cat-accent)}
-.bubble-llm .bubble-label{color:var(--cat-green)}
-.bubble-thinking .bubble-label{color:var(--cat-text2)}
-.bubble-tool-req .bubble-label{color:var(--cat-yellow)}
-.bubble-tool-resp .bubble-label{color:var(--cat-teal)}
-.bubble.collapsed .bubble-content{display:none}
-.bubble.collapsed .bubble-brief{display:block}
-.bubble .bubble-brief{display:none;color:var(--cat-text2);font-size:.75rem;font-style:normal;font-weight:400;text-transform:none;letter-spacing:0;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
-.bubble.collapsible .bubble-label{cursor:pointer}
-.bubble{cursor:default}
-.ask-panel{background:var(--cat-surface2);border:2px solid var(--cat-accent);border-radius:.5rem;padding:.875rem;margin:.5rem 0;max-width:90%;align-self:center}
-.ask-panel .ask-title{font-weight:700;color:var(--cat-accent);margin-bottom:.5rem;font-size:.875rem}
-.ask-panel .choice-btn{display:inline-block;margin:3px;padding:.25rem .75rem;border-radius:.25rem;border:1px solid var(--cat-border);background:var(--cat-surface2);cursor:pointer;font-size:.8125rem;color:var(--cat-text)}
-.ask-panel .choice-btn:hover,.ask-panel .choice-btn.selected{background:var(--cat-accent);color:var(--cat-bg)}
+.tool-args-table td{padding:.125rem .5rem;font-size:.75rem;border-bottom:1px solid var(--bs-border-color)}
+.tool-args-table .arg-name{font-family:monospace;font-weight:600;white-space:nowrap;width:1%}
+.conv-item .conv-del{display:none}
+.conv-item:hover .conv-del{display:inline-block}
 @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
-.status-dot.running{background:var(--cat-green);animation:pulse-dot 1.5s ease-in-out infinite}
-.status-dot.idle{background:var(--cat-text2);opacity:.4}
-.task-item.in_progress .task-icon{color:var(--cat-yellow)}
-.task-item.in_progress .task-text{color:var(--cat-text)}
-.task-item.completed .task-icon{color:var(--cat-green)}
-.task-item.failed .task-icon{color:var(--cat-red)}
+.status-dot.running{animation:pulse-dot 1.5s ease-in-out infinite}
 </style>
 </head>
 <body>
-<div class="chat-layout">
+<div class="d-flex flex-column vh-100">
 <!-- Top bar -->
-<nav class="d-flex align-items-center gap-3 px-3 py-2 border-bottom flex-shrink-0" style="background:var(--cat-surface);min-height:44px">
-  <span class="fw-bold" style="color:var(--cat-accent);font-size:.875rem">LLM DevKit</span>
-  <span class="small" style="color:var(--cat-mauve)" id="llmName"></span>
-  <span class="small flex-grow-1" style="color:var(--cat-text2)" id="stateInfo"></span>
-  <span class="d-none d-inline-flex align-items-center gap-2 border rounded-pill px-2 py-0 small" style="background:var(--cat-surface2);border-color:var(--cat-border)!important;color:var(--cat-text2)" id="tokenPill">
+<nav class="d-flex align-items-center gap-3 px-3 py-2 border-bottom flex-shrink-0 bg-body-secondary">
+  <span class="fw-bold text-primary small">LLM DevKit</span>
+  <span class="small text-info" id="llmName"></span>
+  <span class="small text-body-secondary flex-grow-1" id="stateInfo"></span>
+  <span class="d-none d-inline-flex align-items-center gap-2 border rounded-pill px-2 py-0 small" id="tokenPill">
     <span id="tokTotal">0 tokens</span>
   </span>
-  <div class="form-check form-switch mb-0 d-inline-flex align-items-center gap-1 small" style="color:var(--cat-text2)">
+  <div class="form-check form-switch mb-0 d-inline-flex align-items-center gap-1 small">
     <input class="form-check-input" type="checkbox" id="autoscrollCheck" checked style="cursor:pointer">
     <label class="form-check-label" for="autoscrollCheck" style="cursor:pointer;font-size:.75rem">Autoscroll</label>
   </div>
   <button class="btn btn-sm btn-outline-danger d-none" id="cancelBtn" onclick="cancelSession()">⏹ Cancel</button>
 </nav>
 <!-- Body -->
-<div class="chat-body">
+<div class="d-flex flex-grow-1 overflow-hidden">
   <!-- Sidebar -->
-  <div class="chat-sidebar">
+  <div class="sidebar d-flex flex-column border-end flex-shrink-0 bg-body-secondary">
     <div class="p-3 border-bottom">
-      <h6 class="text-uppercase mb-2" style="font-size:.6875rem;letter-spacing:.5px;color:var(--cat-text2)">Agent</h6>
+      <h6 class="text-uppercase mb-2 small text-body-secondary">Agent</h6>
       <select class="form-select form-select-sm" id="agentSelect" onchange="onAgentChange()"></select>
     </div>
     <div class="px-3 pt-3 pb-1 border-bottom">
-      <h6 class="text-uppercase mb-0" style="font-size:.6875rem;letter-spacing:.5px;color:var(--cat-text2)">Conversations</h6>
+      <h6 class="text-uppercase mb-0 small text-body-secondary">Conversations</h6>
     </div>
     <div class="flex-grow-1 overflow-auto px-1 py-1" id="convList"></div>
-    <div class="mx-2 my-2 py-1 text-center rounded small" style="border:1px dashed var(--cat-border);color:var(--cat-text2);cursor:pointer;background:var(--cat-surface2)" onclick="newConversation()" onmouseover="this.style.borderColor='var(--cat-accent)';this.style.color='var(--cat-accent)'" onmouseout="this.style.borderColor='var(--cat-border)';this.style.color='var(--cat-text2)'">+ New Conversation</div>
+    <div class="mx-2 my-2">
+      <button class="btn btn-sm btn-outline-secondary w-100" onclick="newConversation()">+ New Conversation</button>
+    </div>
     <div class="border-top overflow-auto flex-shrink-0 px-3 py-2" id="taskList" style="display:none;max-height:200px">
-      <h6 class="text-uppercase mb-1" style="font-size:.6875rem;letter-spacing:.5px;color:var(--cat-text2)">Tasks</h6>
+      <h6 class="text-uppercase mb-1 small text-body-secondary">Tasks</h6>
       <div id="taskItems"></div>
     </div>
   </div>
   <!-- Main pane -->
-  <div class="chat-main">
-    <div class="chat-messages" id="messages"></div>
-    <div class="px-3 py-2 border-top flex-shrink-0" style="background:var(--cat-surface)">
+  <div class="flex-grow-1 d-flex flex-column overflow-hidden">
+    <div class="chat-messages flex-grow-1 overflow-auto p-3 d-flex flex-column gap-2" id="messages"></div>
+    <div class="px-3 py-2 border-top flex-shrink-0">
       <div class="d-flex gap-2 align-items-end">
-        <textarea class="form-control flex-grow-1" id="promptInput" rows="1" placeholder="Type your prompt… (Enter to send, Shift+Enter for newline)" onkeydown="onPromptKey(event)" oninput="autoGrow(this)" style="background:var(--cat-bg);border-color:var(--cat-border);border-radius:.5rem;min-height:44px;max-height:200px;resize:none"></textarea>
-        <button class="btn fw-semibold text-nowrap" id="sendBtn" onclick="sendPrompt()" style="background:var(--cat-accent);color:var(--cat-bg);border-radius:.5rem;padding:.625rem 1.25rem;font-size:.875rem">▶ Send</button>
+        <textarea class="form-control flex-grow-1 msg-input" id="promptInput" rows="1" placeholder="Type your prompt… (Enter to send, Shift+Enter for newline)" onkeydown="onPromptKey(event)" oninput="autoGrow(this)"></textarea>
+        <button class="btn btn-primary text-nowrap" id="sendBtn" onclick="sendPrompt()">▶ Send</button>
       </div>
     </div>
   </div>
 </div>
 </div>
 
-<!-- Setup modal (Bootstrap modal) -->
+<!-- Setup modal -->
 <div class="modal fade" id="setupModal" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border" style="background:var(--cat-surface);border-color:var(--cat-border)!important">
+    <div class="modal-content">
       <div class="modal-header border-0 pb-0">
-        <h5 class="modal-title" style="color:var(--cat-accent)">Start Conversation</h5>
+        <h5 class="modal-title text-primary">Start Conversation</h5>
       </div>
       <div class="modal-body">
-        <label class="form-label small" style="color:var(--cat-text2)">Agent</label>
+        <label class="form-label small text-body-secondary">Agent</label>
         <select class="form-select form-select-sm mb-3" id="setupAgent"></select>
-        <label class="form-label small" style="color:var(--cat-text2)">System Prompt Override (optional)</label>
+        <label class="form-label small text-body-secondary">System Prompt Override (optional)</label>
         <textarea class="form-control form-control-sm" id="setupSysPrompt" rows="4" placeholder="Leave empty to use agent default…"></textarea>
       </div>
       <div class="modal-footer border-0 pt-0">
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cancelSetup()">Cancel</button>
-        <button type="button" class="btn btn-sm fw-semibold" style="background:var(--cat-accent);color:var(--cat-bg)" onclick="confirmSetup()">Start</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="confirmSetup()">Start</button>
       </div>
     </div>
   </div>
@@ -157,6 +118,7 @@ let tokenStats = {prompt_tokens:0, completion_tokens:0, total_tokens:0, llm_call
 let _renderScheduled = false;
 let _streamUpdateScheduled = false;
 let setupModalEl = null;
+let _bubbleId = 0;
 
 // Init
 window.onload = async () => {
@@ -192,24 +154,21 @@ function renderConvList() {
   const el = document.getElementById('convList');
   el.innerHTML = '';
   conversations.forEach(c => {
-    const active = c.id === activeConvId ? ' active' : '';
+    const active = c.id === activeConvId;
     const label = c.title || c.id.slice(0,8);
     const statusCls = c.running ? 'running' : 'idle';
-    el.innerHTML += `<div class="conv-item d-flex justify-content-between align-items-center rounded px-2 py-1 small${active}" style="cursor:pointer;color:var(--cat-text2);${active?'background:var(--cat-surface2);color:var(--cat-accent);font-weight:600':''}" data-id="${c.id}">
+    el.innerHTML += `<div class="conv-item d-flex justify-content-between align-items-center rounded px-2 py-1 small list-group-item list-group-item-action${active ? ' active' : ''}" data-id="${c.id}">
       <div class="d-flex align-items-center gap-1 flex-grow-1 overflow-hidden">
-        <span class="status-dot ${statusCls}" style="width:8px;height:8px;border-radius:50%;flex-shrink:0"></span>
-        <span class="overflow-hidden" style="text-overflow:ellipsis;white-space:nowrap">${esc(label)}</span>
+        <span class="status-dot ${statusCls} rounded-circle flex-shrink-0${statusCls === 'running' ? ' bg-success' : ' bg-secondary'}" style="width:8px;height:8px;display:inline-block;opacity:.4"></span>
+        <span class="overflow-hidden text-truncate">${esc(label)}</span>
       </div>
-      <button class="btn btn-sm p-0 border-0 conv-del" style="color:var(--cat-red);font-size:1rem;line-height:1;display:none">×</button>
+      <button class="btn btn-sm p-0 border-0 conv-del text-danger" style="font-size:1rem;line-height:1">×</button>
     </div>`;
   });
-  // Event delegation
   el.querySelectorAll('.conv-item').forEach(item => {
     item.addEventListener('click', () => selectConversation(item.dataset.id));
     const btn = item.querySelector('.conv-del');
     btn.addEventListener('click', e => { e.stopPropagation(); deleteConversation(item.dataset.id); });
-    item.addEventListener('mouseenter', () => { btn.style.display='block'; if(!item.classList.contains('active'))item.style.background='var(--cat-surface2)'; });
-    item.addEventListener('mouseleave', () => { btn.style.display='none'; if(!item.classList.contains('active'))item.style.background=''; });
   });
 }
 
@@ -327,7 +286,7 @@ function updateState(conv) {
   llmEl.textContent = ag?.llm || agentName;
   const isRunning = conv.running || false;
   if (isRunning) {
-    stateEl.innerHTML = '<span style="color:var(--cat-green);font-weight:600">● Running</span>';
+    stateEl.innerHTML = '<span class="text-success fw-semibold">● Running</span>';
     cancelBtn.classList.remove('d-none');
     sendBtn.disabled = true;
   } else {
@@ -363,6 +322,7 @@ function formatTokenCount(n) {
 function renderMessages(conv) {
   const el = document.getElementById('messages');
   el.innerHTML = '';
+  _bubbleId = 0;
   if (!conv) return;
   if (conv.system_prompt) {
     const spBrief = briefText(conv.system_prompt);
@@ -371,7 +331,7 @@ function renderMessages(conv) {
   const defs = toolDefsCache[conv.agent] || [];
   if (defs.length > 0) {
     let toolsHTML = defs.map(t => {
-      let desc = t.description ? `<div class="tool-desc">${esc(t.description)}</div>` : '';
+      let desc = t.description ? `<div class="text-body-secondary small">${esc(t.description)}</div>` : '';
       let args = '';
       if (t.parameters && t.parameters.properties) {
         const props = t.parameters.properties;
@@ -380,14 +340,18 @@ function renderMessages(conv) {
           const req = required.includes(name) ? ' *' : '';
           const typ = schema.type || 'any';
           const d = schema.description ? ` — ${esc(schema.description)}` : '';
-          return `<span class="tool-arg">${esc(name)}:${typ}${req}${d}</span>`;
-        }).join(' ');
+          return `<span class="badge font-monospace text-bg-secondary me-1">${esc(name)}:${typ}${req}${d}</span>`;
+        }).join('');
       }
-      return `<div class="tool-entry"><span class="tool-name">${esc(t.name)}</span>${desc}<div class="tool-args">${args}</div></div>`;
+      return `<div class="border rounded p-2 mb-1">
+        <span class="fw-semibold font-monospace small text-info">${esc(t.name)}</span>
+        ${desc}
+        <div class="mt-1">${args}</div>
+      </div>`;
     }).join('');
     el.innerHTML += bubbleHTML('tools', `Available Tools (${defs.length})`, toolsHTML, true, true, `${defs.length} tools`);
   } else if (conv.tools && conv.tools.length > 0) {
-    const toolsHTML = conv.tools.map(t => `<span class="tool-box">${esc(t)}</span>`).join(' ');
+    const toolsHTML = conv.tools.map(t => `<span class="badge text-bg-secondary me-1">${esc(t)}</span>`).join(' ');
     el.innerHTML += bubbleHTML('tools', 'Available Tools', toolsHTML, true, true, conv.tools.join(', '));
   }
   (conv.messages || []).forEach(m => {
@@ -487,14 +451,40 @@ function briefToolReq(m) {
 }
 
 function bubbleHTML(cls, label, content, raw, collapsed, brief, timestamp) {
-  const col = collapsed ? ' collapsed' : '';
-  const coll = collapsed ? ' collapsible' : '';
-  const briefLine = brief ? `<div class="bubble-brief">${brief}</div>` : '';
-  const tsLine = timestamp ? `<span class="bubble-ts">${formatTime(timestamp)}</span>` : '';
-  return `<div class="bubble bubble-${cls}${col}${coll}">
-    <div class="bubble-label" onclick="this.parentElement.classList.toggle('collapsed')">${label}${tsLine}${briefLine}</div>
-    <div class="bubble-content">${raw ? content : content}</div>
+  const id = 'bc-' + (_bubbleId++);
+  const briefHtml = (collapsed && brief) ? `<span class="brief-badge badge text-bg-secondary fw-normal text-truncate ms-2" style="max-width:250px">${brief}</span>` : '';
+  const tsHtml = timestamp ? `<small class="text-body-secondary ms-auto">${formatTime(timestamp)}</small>` : '';
+
+  let cardCls = 'card bubble-' + cls;
+  let align = 'align-self-start';
+  let maxW = '85%';
+
+  switch(cls) {
+    case 'system':    cardCls += ' border-secondary fst-italic'; align = 'align-self-center'; maxW = '95%'; break;
+    case 'tools':     cardCls += ' border-info';      align = 'align-self-center'; maxW = '95%'; break;
+    case 'user':      cardCls += ' text-bg-primary';  align = 'align-self-end';    maxW = '85%'; break;
+    case 'llm':       break;
+    case 'thinking':  cardCls += ' border-secondary border-dashed bg-transparent'; break;
+    case 'tool-req':  cardCls += ' border-start border-warning'; maxW = '90%'; break;
+    case 'tool-resp': cardCls += ' border-start border-success'; maxW = '90%'; break;
+    case 'error':     cardCls += ' border-danger text-danger';   align = 'align-self-center'; maxW = '90%'; break;
+  }
+
+  const cursor = collapsed ? 'cursor:pointer;' : '';
+  const toggle = collapsed ? `data-bs-toggle="collapse" data-bs-target="#${id}"` : '';
+  const header = `<div class="card-header d-flex align-items-center py-1 px-3 gap-2" ${toggle} style="${cursor}">
+    <h6 class="card-title mb-0 small fw-semibold">${label}</h6>
+    ${briefHtml}${tsHtml}
   </div>`;
+
+  let body;
+  if (collapsed) {
+    body = `<div class="collapse" id="${id}"><div class="card-body bubble-content py-2 px-3 small">${content}</div></div>`;
+  } else {
+    body = `<div class="card-body bubble-content py-2 px-3 small">${content}</div>`;
+  }
+
+  return `<div class="${cardCls} ${align}" style="max-width:${maxW}">${header}${body}</div>`;
 }
 
 function formatTime(ts) {
@@ -543,7 +533,7 @@ function updateStreamingBubble(conv) {
   const contentEl = lastBubble.querySelector('.bubble-content');
   if (!contentEl) return false;
   contentEl.innerHTML = md(last.content);
-  const briefEl = lastBubble.querySelector('.bubble-brief');
+  const briefEl = lastBubble.querySelector('.brief-badge');
   if (briefEl) briefEl.textContent = briefText(last.content);
   return true;
 }
@@ -834,11 +824,12 @@ function renderTaskList() {
   }
   container.style.display = '';
   const icons = {pending: '○', in_progress: '◐', completed: '●', failed: '✕'};
+  const iconCls = {pending: 'text-body-secondary', in_progress: 'text-warning', completed: 'text-success', failed: 'text-danger'};
   el.innerHTML = taskEntries.map(t => {
     const icon = icons[t.status] || '○';
-    return `<div class="task-item ${t.status} d-flex align-items-baseline gap-1 small" style="color:var(--cat-text2);padding:2px 0">
-      <span class="task-icon flex-shrink-0" style="width:14px;text-align:center">${icon}</span>
-      <span class="task-text flex-grow-1 overflow-hidden" style="text-overflow:ellipsis;white-space:nowrap" title="${esc(t.content)}">${esc(t.content)}</span>
+    return `<div class="task-item ${t.status} d-flex align-items-baseline gap-1 small text-body-secondary" style="padding:2px 0">
+      <span class="task-icon flex-shrink-0 ${iconCls[t.status] || ''}" style="width:14px;text-align:center">${icon}</span>
+      <span class="task-text flex-grow-1 overflow-hidden text-truncate" title="${esc(t.content)}">${esc(t.content)}</span>
     </div>`;
   }).join('');
 }
@@ -853,12 +844,14 @@ function renderAskOpenEnded(m) {
   if (m.answered) {
     return bubbleHTML('tool-resp', 'Your Answer', esc(m.answer), false, true, briefText(m.answer));
   }
-  return `<div class="ask-panel" id="ask-${m.id}">
-    <div class="ask-title">💬 Question</div>
-    <p>${md(m.question)}</p>
-    <textarea class="form-control form-control-sm mb-2" id="ask-input-${m.id}" rows="3" placeholder="Your answer…" style="background:var(--cat-bg);border-color:var(--cat-border);color:var(--cat-text)"></textarea>
-    <div class="d-flex gap-2">
-      <button class="btn btn-sm fw-semibold" style="background:var(--cat-green);color:var(--cat-bg);border-color:var(--cat-green)" onclick="answerAsk('${m.id}', document.getElementById('ask-input-${m.id}').value)">Submit</button>
+  return `<div class="card border-primary align-self-center" style="max-width:90%" id="ask-${m.id}">
+    <div class="card-header"><h6 class="card-title mb-0 small fw-semibold">💬 Question</h6></div>
+    <div class="card-body">
+      <p class="mb-2">${md(m.question)}</p>
+      <textarea class="form-control form-control-sm mb-2" id="ask-input-${m.id}" rows="3" placeholder="Your answer…"></textarea>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-success" onclick="answerAsk('${m.id}', document.getElementById('ask-input-${m.id}').value)">Submit</button>
+      </div>
     </div>
   </div>`;
 }
@@ -879,20 +872,22 @@ function renderAskExec(m) {
     const status = m.approved ? '✅ Approved' : '❌ Denied';
     return bubbleHTML(m.approved ? 'tool-resp' : 'error', `ask_exec ${status}`, esc(m.approved ? m.cmdline : 'Denied: ' + m.answer), false, true, `${status}: ${esc(m.approved ? m.cmdline : m.answer)}`);
   }
-  return `<div class="ask-panel" id="ask-${m.id}">
-    <div class="ask-title">⚡ Execute Command</div>
-    <label class="form-label small mb-1" style="color:var(--cat-text2)">Command:</label>
-    <input class="form-control form-control-sm mb-2" id="ask-cmd-${m.id}" value="${esc(m.cmdline)}" style="background:var(--cat-bg);border-color:var(--cat-border);color:var(--cat-text)" />
-    <label class="form-label small mb-1" style="color:var(--cat-text2)">Timeout (seconds):</label>
-    <input class="form-control form-control-sm mb-2" type="number" id="ask-timeout-${m.id}" value="${m.timeout}" min="1" style="background:var(--cat-bg);border-color:var(--cat-border);color:var(--cat-text)" />
-    <div class="d-flex gap-2">
-      <button class="btn btn-sm fw-semibold" style="background:var(--cat-green);color:var(--cat-bg);border-color:var(--cat-green)" onclick="answerExec('${m.id}', true)">Approve</button>
-      <button class="btn btn-sm btn-outline-danger" onclick="answerExec('${m.id}', false)">Deny</button>
-    </div>
-    <div class="mt-2 d-none" id="deny-row-${m.id}">
-      <label class="form-label small mb-1" style="color:var(--cat-text2)">Reason for denial (optional):</label>
-      <input class="form-control form-control-sm mb-1" id="ask-deny-${m.id}" placeholder="Explain to the agent…" style="background:var(--cat-bg);border-color:var(--cat-border);color:var(--cat-text)" />
-      <button class="btn btn-sm btn-outline-danger" onclick="submitDeny('${m.id}')">Submit Deny</button>
+  return `<div class="card border-warning align-self-center" style="max-width:90%" id="ask-${m.id}">
+    <div class="card-header"><h6 class="card-title mb-0 small fw-semibold">⚡ Execute Command</h6></div>
+    <div class="card-body">
+      <label class="form-label small mb-1 text-body-secondary">Command:</label>
+      <input class="form-control form-control-sm mb-2" id="ask-cmd-${m.id}" value="${esc(m.cmdline)}" />
+      <label class="form-label small mb-1 text-body-secondary">Timeout (seconds):</label>
+      <input class="form-control form-control-sm mb-2" type="number" id="ask-timeout-${m.id}" value="${m.timeout}" min="1" />
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-success" onclick="answerExec('${m.id}', true)">Approve</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="answerExec('${m.id}', false)">Deny</button>
+      </div>
+      <div class="mt-2 d-none" id="deny-row-${m.id}">
+        <label class="form-label small mb-1 text-body-secondary">Reason for denial (optional):</label>
+        <input class="form-control form-control-sm mb-1" id="ask-deny-${m.id}" placeholder="Explain to the agent…" />
+        <button class="btn btn-sm btn-outline-danger" onclick="submitDeny('${m.id}')">Submit Deny</button>
+      </div>
     </div>
   </div>`;
 }
@@ -913,21 +908,23 @@ function renderAskMultipleChoice(m) {
   if (m.answered) {
     return bubbleHTML('tool-resp', 'Your Choice', esc(m.answer), false, true, briefText(m.answer));
   }
-  let choices = m.choices.map((c,i) =>
-    `<button class="choice-btn" onclick="answerChoice('${m.id}', ${i}, this)">${esc(c)}</button>`
+  const choices = m.choices.map((c,i) =>
+    `<button class="btn btn-sm btn-outline-secondary mx-1" onclick="answerChoice('${m.id}', ${i}, this)">${esc(c)}</button>`
   ).join('');
   let openEnd = '';
   if (m.allow_open_ended) {
     openEnd = `<div class="mt-2 d-flex gap-2">
-      <input class="form-control form-control-sm flex-grow-1" id="ask-custom-${m.id}" placeholder="Type your own response…" style="background:var(--cat-bg);border-color:var(--cat-border);color:var(--cat-text)" />
-      <button class="choice-btn" onclick="answerCustom('${m.id}')">Submit</button>
+      <input class="form-control form-control-sm flex-grow-1" id="ask-custom-${m.id}" placeholder="Type your own response…" />
+      <button class="btn btn-sm btn-outline-secondary" onclick="answerCustom('${m.id}')">Submit</button>
     </div>`;
   }
-  return `<div class="ask-panel" id="ask-${m.id}">
-    <div class="ask-title">❓ Multiple Choice</div>
-    <p>${md(m.question)}</p>
-    <div>${choices}</div>
-    ${openEnd}
+  return `<div class="card border-info align-self-center" style="max-width:90%" id="ask-${m.id}">
+    <div class="card-header"><h6 class="card-title mb-0 small fw-semibold">❓ Multiple Choice</h6></div>
+    <div class="card-body">
+      <p class="mb-2">${md(m.question)}</p>
+      <div>${choices}</div>
+      ${openEnd}
+    </div>
   </div>`;
 }
 
