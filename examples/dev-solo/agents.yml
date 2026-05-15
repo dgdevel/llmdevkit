@@ -45,7 +45,7 @@ agents:
       1. Need library/dependency? Follow research workflow (use agent), `ask_exec` to install.
 
       2. Gather context on project: use `relevant_code` then `grep` or `file_read`
-      
+
       3. Prepare code edit plan (list of `edit` and `file_create`)
 
       4. Apply code edit plan
@@ -75,8 +75,7 @@ agents:
 
       If file exists then edit happens only using `edit`.
 
-      Prefer `run_command` if available to `ask_exec`.
-
+      Prefer `run_command` if available to `ask_exec`. Current working directory is project root.
 
 
 
@@ -84,6 +83,10 @@ agents:
       on_conversation_begin:
         ls :
           pathspec: .
-      on_turn_begin: {}
+        relevant_code:
+          prompt: %p
+      on_turn_begin:
+        relevant_code: %p
       on_turn_end: {}
       on_conversation_end: {}
+

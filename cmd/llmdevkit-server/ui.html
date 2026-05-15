@@ -151,6 +151,13 @@ async function loadConversations() {
   conversations = await r.json();
 }
 
+function formatFileSize(bytes) {
+  if (!bytes || bytes === 0) return '';
+  if (bytes < 1024) return bytes + 'B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1).replace(/\.0$/,'') + 'K';
+  return (bytes/(1024*1024)).toFixed(1).replace(/\.0$/,'') + 'M';
+}
+
 function renderConvList() {
   const el = document.getElementById('convList');
   el.innerHTML = '';
@@ -158,18 +165,65 @@ function renderConvList() {
     const active = c.id === activeConvId;
     const label = c.title || c.id.slice(0,8);
     const statusCls = c.running ? 'running' : 'idle';
+    const sizeStr = c.file_size ? formatFileSize(c.file_size) : '';
     el.innerHTML += `<div class="conv-item d-flex justify-content-between align-items-center rounded px-2 py-1 small list-group-item list-group-item-action${active ? ' active' : ''}" data-id="${c.id}">
       <div class="d-flex align-items-center gap-1 flex-grow-1 overflow-hidden">
         <span class="status-dot ${statusCls} rounded-circle flex-shrink-0${statusCls === 'running' ? ' bg-success' : ' bg-secondary'}" style="width:8px;height:8px;display:inline-block;opacity:.4"></span>
-        <span class="overflow-hidden text-truncate">${esc(label)}</span>
+        <span class="conv-label overflow-hidden text-truncate">${esc(label)}</span>
+        ${sizeStr ? `<span class="text-body-secondary" style="font-size:.65rem;white-space:nowrap">${sizeStr}</span>` : ''}
       </div>
-      <button class="btn btn-sm p-0 border-0 conv-del text-danger" style="font-size:1rem;line-height:1">×</button>
+      <span class="d-flex gap-1 align-items-center">
+        <span class="conv-rename p-0 border-0 text-body-secondary" style="cursor:pointer;font-size:.65rem;display:none" title="Rename">✏</span>
+        <button class="btn btn-sm p-0 border-0 conv-del text-danger" style="font-size:1rem;line-height:1">×</button>
+      </span>
     </div>`;
   });
   el.querySelectorAll('.conv-item').forEach(item => {
     item.addEventListener('click', () => selectConversation(item.dataset.id));
-    const btn = item.querySelector('.conv-del');
-    btn.addEventListener('click', e => { e.stopPropagation(); deleteConversation(item.dataset.id); });
+    const delBtn = item.querySelector('.conv-del');
+    delBtn.addEventListener('click', e => { e.stopPropagation(); deleteConversation(item.dataset.id); });
+    const renameBtn = item.querySelector('.conv-rename');
+    renameBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      startRename(item.dataset.id);
+    });
+    item.addEventListener('mouseenter', () => { renameBtn.style.display = 'inline'; });
+    item.addEventListener('mouseleave', () => { renameBtn.style.display = 'none'; });
+  });
+}
+
+function startRename(convId) {
+  const conv = conversations.find(c => c.id === convId);
+  if (!conv) return;
+  const item = document.querySelector(`.conv-item[data-id="${convId}"]`);
+  if (!item) return;
+  const labelEl = item.querySelector('.conv-label');
+  if (!labelEl) return;
+  const currentTitle = conv.title || conv.id.slice(0,8);
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'form-control form-control-sm p-0 border-0 bg-transparent';
+  input.style.cssText = 'font-size:inherit;outline:none;box-shadow:none;height:auto;';
+  input.value = currentTitle;
+  labelEl.replaceWith(input);
+  input.focus();
+  input.select();
+  const finish = async () => {
+    const newTitle = input.value.trim() || currentTitle;
+    if (newTitle !== conv.title) {
+      conv.title = newTitle;
+      await fetch('/api/conversations/' + convId + '/rename', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({title: newTitle})
+      });
+    }
+    renderConvList();
+  };
+  input.addEventListener('blur', finish);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = currentTitle; input.blur(); }
   });
 }
 
@@ -826,13 +880,25 @@ function renderTaskList() {
   container.style.display = '';
   const icons = {pending: '○', in_progress: '◐', completed: '●', failed: '✕'};
   const iconCls = {pending: 'text-body-secondary', in_progress: 'text-warning', completed: 'text-success', failed: 'text-danger'};
-  el.innerHTML = taskEntries.map(t => {
+  el.innerHTML = taskEntries.map((t, idx) => {
     const icon = icons[t.status] || '○';
     return `<div class="task-item ${t.status} d-flex align-items-baseline gap-1 small text-body-secondary" style="padding:2px 0">
       <span class="task-icon flex-shrink-0 ${iconCls[t.status] || ''}" style="width:14px;text-align:center">${icon}</span>
       <span class="task-text flex-grow-1 overflow-hidden text-truncate" title="${esc(t.content)}">${esc(t.content)}</span>
+      <span class="task-del" style="cursor:pointer;display:none;font-size:.75rem" data-idx="${idx}">✕</span>
     </div>`;
   }).join('');
+  el.querySelectorAll('.task-item').forEach(item => {
+    const delBtn = item.querySelector('.task-del');
+    item.addEventListener('mouseenter', () => { delBtn.style.display = 'inline'; });
+    item.addEventListener('mouseleave', () => { delBtn.style.display = 'none'; });
+    delBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      const idx = parseInt(delBtn.dataset.idx);
+      taskEntries.splice(idx, 1);
+      renderTaskList();
+    });
+  });
 }
 
 function handleAskOpenEnded(conv, ev) {

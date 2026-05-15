@@ -193,14 +193,22 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 	dlog.Log("RunPrompt msg_count=%d user_prompt_len=%d", len(messages), len(userPrompt))
 	// Execute on_conversation_begin hooks (only on first message)
 	if len(messages) <= 1 {
-		if err := r.executeHooks(ctx, agents.HookConversationBegin, userPrompt); err != nil {
+		hookCtx, err := r.executeHooks(ctx, agents.HookConversationBegin, userPrompt)
+		if err != nil {
 			return nil, "", fmt.Errorf("hook conversation_begin: %w", err)
+		}
+		if hookCtx != "" {
+			messages = append(messages, ChatMessage{Role: "system", Content: hookCtx})
 		}
 	}
 
 	// Execute on_turn_begin hooks
-	if err := r.executeHooks(ctx, agents.HookTurnBegin, userPrompt); err != nil {
+	hookCtx, err := r.executeHooks(ctx, agents.HookTurnBegin, userPrompt)
+	if err != nil {
 		return nil, "", fmt.Errorf("hook turn_begin: %w", err)
+	}
+	if hookCtx != "" {
+		messages = append(messages, ChatMessage{Role: "system", Content: hookCtx})
 	}
 
 	model := r.llm.Model
@@ -268,7 +276,7 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 		// No tool calls → done
 		if len(assistantMsg.ToolCalls) == 0 || choice.FinishReason == "stop" {
 			// Execute on_turn_end hooks
-			_ = r.executeHooks(ctx, agents.HookTurnEnd, userPrompt)
+			_, _ = r.executeHooks(ctx, agents.HookTurnEnd, userPrompt)
 			return fullMessages, assistantMsg.Content, nil
 		}
 
@@ -377,19 +385,25 @@ func (r *Runner) callLLM(ctx context.Context, req chatRequest) (*chatResponse, e
 }
 
 // executeHooks runs all hooks for a given event, replacing %p with the user prompt.
-func (r *Runner) executeHooks(ctx context.Context, hook string, userPrompt string) error {
+// Returns concatenated output from all hook tool calls.
+func (r *Runner) executeHooks(ctx context.Context, hook string, userPrompt string) (string, error) {
 	hooks := r.agent.HookTools(hook)
+	var outputs []string
 	for toolName, args := range hooks {
 		resolved := make(map[string]any)
 		for k, v := range args {
 			resolved[k] = strings.ReplaceAll(v, "%p", userPrompt)
 		}
-		_, err := r.registry.CallTool(ctx, toolName, mustMarshal(resolved))
+		toolName = strings.TrimSpace(toolName)
+		result, err := r.registry.CallTool(ctx, toolName, mustMarshal(resolved))
 		if err != nil {
-			return fmt.Errorf("hook %s/%s: %w", hook, toolName, err)
+			return strings.Join(outputs, "\n"), fmt.Errorf("hook %s/%s: %w", hook, toolName, err)
+		}
+		if result != "" {
+			outputs = append(outputs, result)
 		}
 	}
-	return nil
+	return strings.Join(outputs, "\n"), nil
 }
 
 func mustMarshal(v any) json.RawMessage {

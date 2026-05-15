@@ -121,7 +121,7 @@ func main() {
 		),
 		mcp.WithString("line_range",
 			mcp.Required(),
-			mcp.Description("Line range, 1-indexed. Formats: from:to, from-to, [from:to], [from-to]. Examples: 1:10, 1-10, [1-10], [1:10]"),
+			mcp.Description("Line range, 1-indexed. Formats: from:to, from-to, [from:to], [from-to]"),
 		),
 	), tools.FileReadHandler)
 
@@ -257,7 +257,6 @@ func main() {
 		mcp.WithDescription("Show usage examples for a tool"),
 		mcp.WithString("tool_name",
 			mcp.Required(),
-			mcp.Description("Name of the tool to get examples for"),
 		),
 	), tools.ExamplesHandler)
 

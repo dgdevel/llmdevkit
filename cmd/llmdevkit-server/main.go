@@ -74,6 +74,7 @@ type Conversation struct {
 	Messages     []BubbleMessage `json:"messages"`
 	TokenStats   TokenStats      `json:"token_stats,omitempty"`
 	Running      bool            `json:"running"`
+	FileSize     int64           `json:"file_size,omitempty"`
 
 	ACPSessionID string `json:"acp_session_id,omitempty"`
 	Initialized  bool   `json:"-"`
@@ -291,6 +292,7 @@ func (s *Server) resolveToolDefs(ctx context.Context, agentName string) ([]ToolD
 				ToolDefInfo{Name: "ask_open_ended", Description: "Ask user an open-ended question", Parameters: map[string]any{"type": "object", "properties": map[string]any{"question": map[string]any{"type": "string", "description": "The question text"}}}},
 				ToolDefInfo{Name: "ask_exec", Description: "Ask user to execute a command", Parameters: map[string]any{"type": "object", "properties": map[string]any{"cmdline": map[string]any{"type": "string", "description": "Command line"}, "timeout": map[string]any{"type": "integer", "description": "Timeout in seconds"}}}},
 				ToolDefInfo{Name: "ask_multiple_choice", Description: "Ask user a multiple choice question"},
+				ToolDefInfo{Name: "rename_conversation", Description: "Rename the current conversation", Parameters: map[string]any{"type": "object", "properties": map[string]any{"title": map[string]any{"type": "string", "description": "New title for the conversation"}}, "required": []string{"title"}}},
 			)
 		default:
 			if s.mcpCfg != nil {
@@ -374,6 +376,10 @@ func (s *Server) handleConversations(w http.ResponseWriter, r *http.Request) {
 		list := make([]*Conversation, 0)
 		for _, id := range s.convOrder {
 			if c, ok := s.convs[id]; ok {
+				// Refresh file size
+				if fi, err := os.Stat(s.convFile(c.ID)); err == nil {
+					c.FileSize = fi.Size()
+				}
 				list = append(list, c)
 			}
 		}
@@ -453,6 +459,8 @@ func (s *Server) handleConversationActions(w http.ResponseWriter, r *http.Reques
 		s.handleConvPrompt(w, r, convID)
 	case "cancel":
 		s.handleConvCancel(w, r, convID)
+	case "rename":
+		s.handleConvRename(w, r, convID)
 	default:
 		http.Error(w, "unknown action", 404)
 	}
@@ -623,6 +631,33 @@ func (s *Server) handleConvCancel(w http.ResponseWriter, r *http.Request, convID
 	}
 	s.setConvRunning(convID, false)
 	w.WriteHeader(204)
+}
+
+func (s *Server) handleConvRename(w http.ResponseWriter, r *http.Request, convID string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var req struct {
+		Title string `json:"title"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	s.mu.Lock()
+	conv, ok := s.convs[convID]
+	if ok && req.Title != "" {
+		conv.Title = req.Title
+	}
+	s.mu.Unlock()
+	if !ok {
+		http.Error(w, "not found", 404)
+		return
+	}
+	s.appendJSONL(convID, "conversation_created", conv)
+	s.broadcastSSE("", "conversation_updated", conv)
+	writeJSON(w, map[string]string{"title": conv.Title})
 }
 
 // ── ACP subprocess management ───────────────────────────────────────────────
@@ -1153,6 +1188,23 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle rename_conversation (fire-and-forget from LLM tool)
+	if askType == "rename_conversation" {
+		var title string
+		json.Unmarshal(payload["title"], &title)
+		if title != "" {
+			s.mu.Lock()
+			if conv, ok := s.convs[convID]; ok {
+				conv.Title = title
+			}
+			s.mu.Unlock()
+			s.appendJSONL(convID, "conversation_created", s.convs[convID])
+			s.broadcastSSE("", "conversation_updated", s.convs[convID])
+		}
+		w.WriteHeader(204)
+		return
+	}
+
 	askID := fmt.Sprintf("ask_%d", time.Now().UnixNano())
 
 	// Inject ask_id into the payload so the SSE broadcast carries it.
@@ -1481,6 +1533,11 @@ func (s *Server) loadConversations() error {
 			}
 		}
 		f.Close()
+
+		// Populate file size
+		if fi, err := os.Stat(filepath.Join(dir, entry.Name())); err == nil {
+			conv.FileSize = fi.Size()
+		}
 
 		convs[convID] = conv
 		order = append(order, convID)
