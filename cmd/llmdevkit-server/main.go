@@ -31,7 +31,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-//go:embed ui.html
+//go:embed ui.html js
 var staticFS embed.FS
 
 // ── Data types ──────────────────────────────────────────────────────────────
@@ -196,13 +196,25 @@ func main() {
 // ── Static UI ───────────────────────────────────────────────────────────────
 
 func (s *Server) serveUI(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
+	path := r.URL.Path
+	if path == "/" {
+		data, _ := staticFS.ReadFile("ui.html")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(data)
 		return
 	}
-	data, _ := staticFS.ReadFile("ui.html")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(data)
+	// Serve JS module files from embedded fs
+	if strings.HasPrefix(path, "/js/") && strings.HasSuffix(path, ".js") {
+		data, err := staticFS.ReadFile(path[1:]) // strip leading /
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		w.Write(data)
+		return
+	}
+	http.NotFound(w, r)
 }
 
 // ── API: Agents ─────────────────────────────────────────────────────────────
