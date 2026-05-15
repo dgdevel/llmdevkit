@@ -38,6 +38,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .conv-item.active{background:var(--surface2);color:var(--accent)}
 .conv-item .del{display:none;background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0 4px}
 .conv-item:hover .del{display:block}
+.conv-item .status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-right:6px}
+.conv-item .status-dot.idle{background:var(--text2);opacity:0.4}
+.conv-item .status-dot.running{background:var(--green);animation:pulse-dot 1.5s ease-in-out infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.3}}
+.conv-item .conv-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conv-item .conv-right{display:flex;align-items:center;gap:4px}
 .new-conv-btn{margin:8px 12px;padding:6px;background:var(--surface2);border:1px dashed var(--border);border-radius:4px;color:var(--text2);cursor:pointer;font-size:12px;text-align:center}
 .new-conv-btn:hover{border-color:var(--accent);color:var(--accent)}
 /* Main pane */
@@ -242,9 +248,11 @@ function renderConvList() {
   conversations.forEach(c => {
     const active = c.id === activeConvId ? ' active' : '';
     const label = c.title || c.id.slice(0,8);
+    const statusCls = c.running ? 'running' : 'idle';
     el.innerHTML += `<div class="conv-item${active}" onclick="selectConversation('${c.id}')">
-      <span>${esc(label)}</span>
-      <button class="del" onclick="event.stopPropagation();deleteConversation('${c.id}')">×</button>
+      <span class="status-dot ${statusCls}"></span>
+      <span class="conv-label">${esc(label)}</span>
+      <span class="conv-right"><button class="del" onclick="event.stopPropagation();deleteConversation('${c.id}')">×</button></span>
     </div>`;
   });
 }
@@ -366,7 +374,8 @@ function updateState(conv) {
   const agentName = conv.agent || '';
   const ag = agents.find(a => a.name === agentName);
   llmEl.textContent = ag?.llm || agentName;
-  if (running) {
+  const isRunning = conv.running || false;
+  if (isRunning) {
     stateEl.innerHTML = '<span class="running">● Running</span>';
     cancelBtn.style.display = '';
     sendBtn.disabled = true;
@@ -487,7 +496,7 @@ function renderToolRequest(m) {
     }
   }
   const brief = briefToolReq(m);
-  return bubbleHTML('tool-req', `⚙ ${title}`, argsHTML, true, true, brief, m.timestamp);
+  return bubbleHTML('tool-req', `⚙ ${title}`, argsHTML, true, false, brief, m.timestamp);
 }
 
 function renderToolResponse(m) {
@@ -640,17 +649,20 @@ async function sendPrompt() {
     renderTaskList();
     if (conv.agent) await loadToolDefs(conv.agent);
     renderMessages(conv);
+    renderConvList();
     updateState(conv);
     return;
   }
 
   // Send prompt to existing session
   conv.messages.push({type:'user', content: text});
+  conv.running = true;
   renderMessages(conv);
   running = true;
   taskEntries = [];
   toolCallIdToName = {};
   renderTaskList();
+  renderConvList();
   updateState(conv);
 
   try {
@@ -666,8 +678,10 @@ async function sendPrompt() {
   } catch(e) {
     conv.messages.push({type:'error', content: 'Fetch error: ' + e.message});
   }
+  conv.running = false;
   running = false;
   renderMessages(conv);
+  renderConvList();
   updateState(conv);
   scrollToBottom();
 }
@@ -676,9 +690,11 @@ async function cancelSession() {
   const conv = getActiveConv();
   if (!conv) return;
   await fetch('/api/conversations/' + conv.id + '/cancel', {method:'POST'});
+  conv.running = false;
   running = false;
   taskEntries = taskEntries.map(t => t.status === 'in_progress' ? {...t, status: 'completed'} : t);
   renderTaskList();
+  renderConvList();
   updateState(conv);
 }
 
@@ -750,12 +766,14 @@ function handleEvent(ev) {
       handleAskMultipleChoice(conv, ev);
       break;
     case 'state':
-      running = ev.data?.running || false;
+      conv.running = ev.data?.running || false;
+      running = conv.running;
       if (ev.data && !ev.data.running) {
         taskEntries = taskEntries.map(t => t.status === 'in_progress' ? {...t, status: 'completed'} : t);
         renderTaskList();
       }
       updateState(conv);
+      renderConvList();
       break;
     case 'token_stats':
       if (ev.data) {

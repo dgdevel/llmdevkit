@@ -73,6 +73,7 @@ type Conversation struct {
 	Title        string          `json:"title,omitempty"`
 	Messages     []BubbleMessage `json:"messages"`
 	TokenStats   TokenStats      `json:"token_stats,omitempty"`
+	Running      bool            `json:"running"`
 
 	ACPSessionID string `json:"acp_session_id,omitempty"`
 	Initialized  bool   `json:"-"`
@@ -539,7 +540,7 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 		"tools":         conv.Tools,
 	})
 	s.appendJSONL(convID, "bubble", BubbleMessage{Type: "user", Content: req.Prompt, Timestamp: nowISO()})
-	s.broadcastSSE(convID, "state", map[string]bool{"running": true})
+	s.setConvRunning(convID, true)
 	// Snapshot conv for SSE broadcast — goroutine may modify conv concurrently
 	s.mu.Lock()
 	convCopy := *conv
@@ -593,7 +594,7 @@ func (s *Server) handleConvPrompt(w http.ResponseWriter, r *http.Request, convID
 	s.mu.Unlock()
 
 	s.appendJSONL(convID, "bubble", BubbleMessage{Type: "user", Content: req.Prompt, Timestamp: ts})
-	s.broadcastSSE(convID, "state", map[string]bool{"running": true})
+	s.setConvRunning(convID, true)
 	s.broadcastSSE("", "conversation_updated", &convCopy)
 
 	go s.runACPPrompt(convID, req.Prompt)
@@ -620,7 +621,7 @@ func (s *Server) handleConvCancel(w http.ResponseWriter, r *http.Request, convID
 		})
 		s.acpMu.Unlock()
 	}
-	s.broadcastSSE(convID, "state", map[string]bool{"running": false})
+	s.setConvRunning(convID, false)
 	w.WriteHeader(204)
 }
 
@@ -900,7 +901,7 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 		if err := s.ensureACPConnection(); err != nil {
 			s.dlog.Log("runACPPrompt conv=%s ensureACPConnection FAILED: %v", convID, err)
 			s.addBubble(convID, BubbleMessage{Type: "error", Content: fmt.Sprintf("ACP not connected: %v", err)})
-			s.broadcastSSE(convID, "state", map[string]bool{"running": false})
+			s.setConvRunning(convID, false)
 			return
 		}
 		// Fresh ACP process — need a new session
@@ -912,7 +913,7 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 		if err != nil {
 			s.dlog.Log("runACPPrompt conv=%s NewSession FAILED: %v", convID, err)
 			s.addBubble(convID, BubbleMessage{Type: "error", Content: fmt.Sprintf("ACP new session: %v", err)})
-			s.broadcastSSE(convID, "state", map[string]bool{"running": false})
+			s.setConvRunning(convID, false)
 			return
 		}
 		s.mu.Lock()
@@ -956,7 +957,7 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 		})
 	}
 
-	s.broadcastSSE(convID, "state", map[string]bool{"running": false})
+	s.setConvRunning(convID, false)
 }
 
 // ── Bubble management ───────────────────────────────────────────────────────
@@ -997,6 +998,17 @@ func (s *Server) addBubble(convID string, b BubbleMessage) {
 
 	s.broadcastSSE(convID, "session_update", b)
 	s.appendJSONL(convID, "bubble", b)
+}
+
+// setConvRunning updates the running state for a conversation and broadcasts it.
+func (s *Server) setConvRunning(convID string, isRunning bool) {
+	s.mu.Lock()
+	conv, ok := s.convs[convID]
+	if ok {
+		conv.Running = isRunning
+	}
+	s.mu.Unlock()
+	s.broadcastSSE(convID, "state", map[string]bool{"running": isRunning})
 }
 
 // updateToolRequestRawInput finds the last tool_request bubble matching the
@@ -1062,13 +1074,22 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 	}
 	s.dlog.Log("handleSideChannel askType=%s", askType)
 
-	// Find the active conversation (last one with running state)
+	// Find the conversation for this side-channel request.
+	// Prefer a running conversation (most recently started), fallback to first initialized.
 	s.mu.RLock()
 	var convID string
 	for _, id := range s.convOrder {
-		if c, ok := s.convs[id]; ok && c.Initialized {
+		if c, ok := s.convs[id]; ok && c.Running {
 			convID = c.ID
 			break
+		}
+	}
+	if convID == "" {
+		for _, id := range s.convOrder {
+			if c, ok := s.convs[id]; ok && c.Initialized {
+				convID = c.ID
+				break
+			}
 		}
 	}
 	s.mu.RUnlock()

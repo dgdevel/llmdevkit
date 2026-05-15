@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"llmdevkit/internal/agents"
 	"llmdevkit/internal/debuglog"
@@ -270,42 +271,57 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 			return assistantMsg.Content, nil
 		}
 
-		// Process tool calls
+		// Process tool calls in parallel
 		fullMessages = append(fullMessages, ChatMessage{
 			Role:      "assistant",
 			Content:   assistantMsg.Content,
 			ToolCalls: assistantMsg.ToolCalls,
 		})
 
-		for _, tc := range assistantMsg.ToolCalls {
-			if r.onToolStart != nil {
-				r.onToolStart(tc.ID, tc.Function.Name, "other", tc.Function.Arguments)
-			}
-			if r.onToolUpdate != nil {
-				r.onToolUpdate(tc.ID, "in_progress", "")
-			}
-
-			result, err := r.registry.CallTool(ctx, tc.Function.Name, tc.Function.Arguments)
-			if err != nil {
-				result = fmt.Sprintf("Error: %v", err)
-				if r.onToolUpdate != nil {
-					r.onToolUpdate(tc.ID, "failed", result)
+		type toolResult struct {
+			toolCallID string
+			content    string
+		}
+		results := make([]toolResult, len(assistantMsg.ToolCalls))
+		var wg sync.WaitGroup
+		for i, tc := range assistantMsg.ToolCalls {
+			wg.Add(1)
+			go func(idx int, tc toolCall) {
+				defer wg.Done()
+				if r.onToolStart != nil {
+					r.onToolStart(tc.ID, tc.Function.Name, "other", tc.Function.Arguments)
 				}
-			} else {
 				if r.onToolUpdate != nil {
-					r.onToolUpdate(tc.ID, "completed", result)
+					r.onToolUpdate(tc.ID, "in_progress", "")
 				}
-			}
 
-			// Ensure tool response always has content (some LLMs reject empty content)
-			toolContent := result
-			if toolContent == "" {
-				toolContent = "(no output)"
-			}
+				result, err := r.registry.CallTool(ctx, tc.Function.Name, tc.Function.Arguments)
+				if err != nil {
+					result = fmt.Sprintf("Error: %v", err)
+					if r.onToolUpdate != nil {
+						r.onToolUpdate(tc.ID, "failed", result)
+					}
+				} else {
+					if r.onToolUpdate != nil {
+						r.onToolUpdate(tc.ID, "completed", result)
+					}
+				}
+
+				// Ensure tool response always has content (some LLMs reject empty content)
+				toolContent := result
+				if toolContent == "" {
+					toolContent = "(no output)"
+				}
+				results[idx] = toolResult{toolCallID: tc.ID, content: toolContent}
+			}(i, tc)
+		}
+		wg.Wait()
+
+		for _, res := range results {
 			fullMessages = append(fullMessages, ChatMessage{
 				Role:       "tool",
-				Content:    toolContent,
-				ToolCallID: tc.ID,
+				Content:    res.content,
+				ToolCallID: res.toolCallID,
 			})
 		}
 	}
