@@ -395,9 +395,27 @@ func (r *Runner) executeHooks(ctx context.Context, hook string, userPrompt strin
 			resolved[k] = strings.ReplaceAll(v, "%p", userPrompt)
 		}
 		toolName = strings.TrimSpace(toolName)
+		hookID := fmt.Sprintf("hook_%s_%s", hook, toolName)
+		hookArgs, _ := json.Marshal(resolved)
+		if r.onToolStart != nil {
+			r.onToolStart(hookID, fmt.Sprintf("[hook:%s] %s", hook, toolName), "hook", hookArgs)
+		}
+		if r.onToolUpdate != nil {
+			r.onToolUpdate(hookID, "in_progress", "")
+		}
 		result, err := r.registry.CallTool(ctx, toolName, mustMarshal(resolved))
 		if err != nil {
+			if r.onToolUpdate != nil {
+				r.onToolUpdate(hookID, "failed", fmt.Sprintf("Error: %v", err))
+			}
 			return strings.Join(outputs, "\n"), fmt.Errorf("hook %s/%s: %w", hook, toolName, err)
+		}
+		if r.onToolUpdate != nil {
+			displayResult := result
+			if displayResult == "" {
+				displayResult = "(no output)"
+			}
+			r.onToolUpdate(hookID, "completed", displayResult)
 		}
 		if result != "" {
 			outputs = append(outputs, result)

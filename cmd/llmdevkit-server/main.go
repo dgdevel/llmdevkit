@@ -535,6 +535,13 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 		if sysPrompt == "" {
 			sysPrompt = agentCfg.SystemPrompt
 		}
+		// Append AGENTS.md content if present (same as runner does)
+		if s.rootDir != "" {
+			agentsMD, err := os.ReadFile(filepath.Join(s.rootDir, "AGENTS.md"))
+			if err == nil && len(agentsMD) > 0 {
+				sysPrompt += "\n\n" + string(agentsMD)
+			}
+		}
 		conv.SystemPrompt = sysPrompt
 		conv.Tools = agentCfg.ToolNames()
 	}
