@@ -892,9 +892,17 @@ function renderTaskList() {
     const delBtn = item.querySelector('.task-del');
     item.addEventListener('mouseenter', () => { delBtn.style.display = 'inline'; });
     item.addEventListener('mouseleave', () => { delBtn.style.display = 'none'; });
-    delBtn.addEventListener('click', e => {
+    delBtn.addEventListener('click', async e => {
       e.stopPropagation();
       const idx = parseInt(delBtn.dataset.idx);
+      const task = taskEntries[idx];
+      if (task) {
+        await fetch('/api/tasks/delete', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({id: task.id})
+        });
+      }
       taskEntries.splice(idx, 1);
       renderTaskList();
     });

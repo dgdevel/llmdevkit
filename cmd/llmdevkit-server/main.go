@@ -24,6 +24,7 @@ import (
 	"llmdevkit/internal/debuglog"
 	"llmdevkit/internal/llms"
 	"llmdevkit/internal/mcps"
+	"llmdevkit/internal/tools"
 
 	acp "github.com/ironpark/go-acp"
 	"github.com/mark3labs/mcp-go/client"
@@ -181,6 +182,7 @@ func main() {
 	mux.HandleFunc("/api/conversations", srv.handleConversations)
 	mux.HandleFunc("/api/conversations/", srv.handleConversationActions)
 	mux.HandleFunc("/api/ask/", srv.handleAskAnswer)
+	mux.HandleFunc("/api/tasks/delete", srv.handleTaskDelete)
 	mux.HandleFunc("/api/sidechannel", srv.handleSideChannel)
 	mux.HandleFunc("/api/events", srv.handleSSE)
 
@@ -1341,6 +1343,51 @@ func (s *Server) waitForAskAnswer(convID, askID, askType string, payload interfa
 }
 
 // ── SSE ─────────────────────────────────────────────────────────────────────
+
+func (s *Server) handleTaskDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	if req.ID == "" {
+		http.Error(w, "missing id", 400)
+		return
+	}
+
+	tools.TasksMu.Lock()
+	defer tools.TasksMu.Unlock()
+	tasks, err := tools.ReadTasks()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	prefix := req.ID + "."
+	var filtered []tools.Task
+	found := false
+	for _, t := range tasks {
+		if t.ID == req.ID || strings.HasPrefix(t.ID, prefix) {
+			found = true
+			continue
+		}
+		filtered = append(filtered, t)
+	}
+	if !found {
+		writeJSON(w, map[string]interface{}{"ok": false, "tasks": tasks})
+		return
+	}
+	if err := tools.WriteTasks(filtered); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "tasks": filtered})
+}
 
 func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
