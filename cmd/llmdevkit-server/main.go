@@ -1526,10 +1526,7 @@ func (s *Server) loadConversations() error {
 			case "token_stats":
 				var ts TokenStats
 				json.Unmarshal(line.Payload, &ts)
-				conv.TokenStats.PromptTokens += ts.PromptTokens
-				conv.TokenStats.CompletionTokens += ts.CompletionTokens
-				conv.TokenStats.TotalTokens += ts.TotalTokens
-				conv.TokenStats.LLMCalls += ts.LLMCalls
+				conv.TokenStats = ts
 			}
 		}
 		f.Close()
