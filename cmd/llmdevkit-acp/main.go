@@ -41,6 +41,7 @@ type llmdevkitAgent struct {
 	mcpCfg     *mcps.Config
 	agentCfg   *agents.Config
 	rootDir    string
+	store      *acp.MemoryStore[*sessionData]
 
 	client acp.Client // set after connection init
 
@@ -103,6 +104,7 @@ func main() {
 	}
 
 	store := acp.NewMemoryStore[*sessionData]()
+	agent.store = store
 	factory := func(ctx context.Context, params *acp.NewSessionRequest) (acp.SessionID, *sessionData, error) {
 		id := acp.GenerateSessionID()
 		cwd := params.Cwd
@@ -207,10 +209,13 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 	promptCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Build messages
-	messages := []runner.ChatMessage{
-		{Role: "user", Content: promptText},
+	// Build messages: prepend conversation history from session
+	var messages []runner.ChatMessage
+	if sd, ok := a.store.Get(params.SessionID); ok && len(sd.Messages) > 0 {
+		messages = make([]runner.ChatMessage, len(sd.Messages), len(sd.Messages)+1)
+		copy(messages, sd.Messages)
 	}
+	messages = append(messages, runner.ChatMessage{Role: "user", Content: promptText})
 
 	// Map LLM tool-call IDs → ACP ToolCallIDs so start/complete/fail
 	// use the same ID for each tool call.
@@ -269,10 +274,16 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 		}),
 	)
 
-	result, err := r.RunPrompt(promptCtx, messages, promptText)
+	fullMessages, result, err := r.RunPrompt(promptCtx, messages, promptText)
 	if err != nil {
 		stream.SendText(promptCtx, fmt.Sprintf("Error: %v\n", err))
 		return &acp.PromptResponse{StopReason: acp.StopReasonRefusal}, nil
+	}
+
+	// Save conversation history to session store
+	if sd, ok := a.store.Get(params.SessionID); ok {
+		sd.Messages = fullMessages
+		a.store.Set(params.SessionID, sd)
 	}
 
 	_ = result
@@ -727,7 +738,7 @@ func (a *llmdevkitAgent) registerAgentTools(registry *runner.ToolRegistry) {
 			}
 
 			r := runner.NewRunner(llmDef, subCfg, subRegistry, a.agentCfg, runner.WithRootDir(a.rootDir))
-			result, err := r.RunPrompt(ctx, messages, prompt)
+			_, result, err := r.RunPrompt(ctx, messages, prompt)
 			if err != nil {
 				return "", fmt.Errorf("agent %q error: %w", agentName, err)
 			}

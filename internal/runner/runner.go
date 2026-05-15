@@ -187,19 +187,20 @@ type TokenStats struct {
 
 // RunPrompt executes a full prompt turn with the agent.
 // promptText is the user's message. userPrompt is the original raw prompt (for %p substitution).
-func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userPrompt string) (string, error) {
+// Returns the full conversation messages and the assistant's final text response.
+func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userPrompt string) ([]ChatMessage, string, error) {
 	dlog := debuglog.For("runner")
 	dlog.Log("RunPrompt msg_count=%d user_prompt_len=%d", len(messages), len(userPrompt))
 	// Execute on_conversation_begin hooks (only on first message)
 	if len(messages) <= 1 {
 		if err := r.executeHooks(ctx, agents.HookConversationBegin, userPrompt); err != nil {
-			return "", fmt.Errorf("hook conversation_begin: %w", err)
+			return nil, "", fmt.Errorf("hook conversation_begin: %w", err)
 		}
 	}
 
 	// Execute on_turn_begin hooks
 	if err := r.executeHooks(ctx, agents.HookTurnBegin, userPrompt); err != nil {
-		return "", fmt.Errorf("hook turn_begin: %w", err)
+		return nil, "", fmt.Errorf("hook turn_begin: %w", err)
 	}
 
 	model := r.llm.Model
@@ -235,11 +236,11 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 
 		resp, err := r.callLLM(ctx, reqBody)
 		if err != nil {
-			return "", err
+			return nil, "", err
 		}
 
 		if resp.Error != nil {
-			return "", fmt.Errorf("LLM error: %s", resp.Error.Message)
+			return nil, "", fmt.Errorf("LLM error: %s", resp.Error.Message)
 		}
 
 		// Accumulate token stats
@@ -251,7 +252,7 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 		}
 
 		if len(resp.Choices) == 0 {
-			return "", fmt.Errorf("LLM returned no choices")
+			return nil, "", fmt.Errorf("LLM returned no choices")
 		}
 
 		choice := resp.Choices[0]
@@ -268,7 +269,7 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 		if len(assistantMsg.ToolCalls) == 0 || choice.FinishReason == "stop" {
 			// Execute on_turn_end hooks
 			_ = r.executeHooks(ctx, agents.HookTurnEnd, userPrompt)
-			return assistantMsg.Content, nil
+			return fullMessages, assistantMsg.Content, nil
 		}
 
 		// Process tool calls in parallel
