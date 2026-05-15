@@ -81,8 +81,7 @@ html,body{height:100%;overflow:hidden;background:var(--cat-bg)}
   <span class="small" style="color:var(--cat-mauve)" id="llmName"></span>
   <span class="small flex-grow-1" style="color:var(--cat-text2)" id="stateInfo"></span>
   <span class="d-none d-inline-flex align-items-center gap-2 border rounded-pill px-2 py-0 small" style="background:var(--cat-surface2);border-color:var(--cat-border)!important;color:var(--cat-text2)" id="tokenPill">
-    <span style="color:var(--cat-peach)" id="tokIn">↑0</span>
-    <span style="color:var(--cat-green)" id="tokOut">↓0</span>
+    <span id="tokTotal">0 tokens</span>
   </span>
   <div class="form-check form-switch mb-0 d-inline-flex align-items-center gap-1 small" style="color:var(--cat-text2)">
     <input class="form-check-input" type="checkbox" id="autoscrollCheck" checked style="cursor:pointer">
@@ -344,17 +343,21 @@ function updateState(conv) {
 
 function updateTokenPill() {
   const pill = document.getElementById('tokenPill');
-  const tokIn = document.getElementById('tokIn');
-  const tokOut = document.getElementById('tokOut');
+  const tokTotal = document.getElementById('tokTotal');
   if (tokenStats.total_tokens > 0) {
     pill.classList.remove('d-none');
     pill.classList.add('d-inline-flex');
-    tokIn.textContent = '↑' + tokenStats.prompt_tokens;
-    tokOut.textContent = '↓' + tokenStats.completion_tokens;
+    tokTotal.textContent = formatTokenCount(tokenStats.total_tokens);
   } else {
     pill.classList.add('d-none');
     pill.classList.remove('d-inline-flex');
   }
+}
+
+function formatTokenCount(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
+  return '' + n;
 }
 
 function renderMessages(conv) {
