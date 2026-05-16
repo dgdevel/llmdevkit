@@ -4,6 +4,16 @@ A toolkit for building and running AI-powered developer agents. Provides an MCP 
 
 The project is a merge of my previous two projects [nixdevkit](/dgdevel/nixdevkit) and [lite-dev-agent](/dgdevel/lite-dev-agent).
 
+## Quickstart
+
+### Build
+
+`make`
+
+### Install
+
+Copy the six executable in your $PATH.
+
 ## Executables
 
 | Binary | Description |
