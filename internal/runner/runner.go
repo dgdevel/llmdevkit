@@ -231,13 +231,6 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 		}
 	}
 	fullMessages := append([]ChatMessage{systemMsg}, messages...)
-	var stats TokenStats
-	// Emit final token stats once when the turn completes
-	defer func() {
-		if stats.LLMCalls > 0 && r.onTokenStats != nil {
-			r.onTokenStats(stats)
-		}
-	}()
 
 	for {
 		reqBody.Messages = fullMessages
@@ -251,12 +244,14 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 			return nil, "", fmt.Errorf("LLM error: %s", resp.Error.Message)
 		}
 
-		// Accumulate token stats
-		if resp.Usage != nil {
-			stats.PromptTokens += resp.Usage.PromptTokens
-			stats.CompletionTokens += resp.Usage.CompletionTokens
-			stats.TotalTokens += resp.Usage.TotalTokens
-			stats.LLMCalls++
+		// Emit per-call token stats immediately
+		if resp.Usage != nil && r.onTokenStats != nil {
+			r.onTokenStats(TokenStats{
+				PromptTokens:     resp.Usage.PromptTokens,
+				CompletionTokens: resp.Usage.CompletionTokens,
+				TotalTokens:      resp.Usage.TotalTokens,
+				LLMCalls:         1,
+			})
 		}
 
 		if len(resp.Choices) == 0 {

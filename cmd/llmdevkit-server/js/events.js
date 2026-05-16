@@ -85,7 +85,7 @@ function handleEvent(ev) {
         const tokens = ev.data.total_tokens || 0;
         for (let i = conv.messages.length - 1; i >= 0; i--) {
           if (conv.messages[i].type === 'llm') {
-            conv.messages[i].token_count = (conv.messages[i].token_count || 0) + tokens;
+            conv.messages[i].token_count = tokens;
             break;
           }
         }

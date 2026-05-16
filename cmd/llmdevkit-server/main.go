@@ -1343,7 +1343,7 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 			// Set token count on the last llm bubble
 			for i := len(conv.Messages) - 1; i >= 0; i-- {
 				if conv.Messages[i].Type == "llm" {
-					conv.Messages[i].TokenCount = conv.Messages[i].TokenCount + stats.TotalTokens
+					conv.Messages[i].TokenCount = stats.TotalTokens
 					break
 				}
 			}
@@ -1770,7 +1770,7 @@ func (s *Server) loadConversations() error {
 				// Set token count on the last llm bubble
 				for i := len(conv.Messages) - 1; i >= 0; i-- {
 					if conv.Messages[i].Type == "llm" {
-						conv.Messages[i].TokenCount = conv.Messages[i].TokenCount + ts.TotalTokens
+						conv.Messages[i].TokenCount = ts.TotalTokens
 						break
 					}
 				}
