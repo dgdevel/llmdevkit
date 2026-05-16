@@ -12,6 +12,7 @@ clean:
 	rm -f llmdevkit-mcp llmdevkit-config llmdevkit-setup llmdevkit-indexer llmdevkit-acp llmdevkit-server
 
 test:
+	bun run eslint --no-config-lookup cmd/llmdevkit-server/
 	go vet ./...
 	go test ./... || go test -v ./...
 
