@@ -158,272 +158,45 @@ All paths are virtual — `/` maps to the root directory. Path traversal is bloc
 
 ## Tools
 
-### `file_create` — Create a file
-
-| Argument | Description |
-|----------|-------------|
-| `path` | File path |
-| `content` | File content |
-
-Creates a new file. Errors if the file already exists.
-
-### `ls` — List directory content
-
-| Argument | Description |
-|----------|-------------|
-| `pathspec` | Glob expression for file names |
-
-Recursively walks the root matching the glob pattern. Supports `*` and `**` (globstar) syntax. Directories end with `/`.
-
-### `file_read` — Read file content
-
-| Argument | Description |
-|----------|-------------|
-| `path` | File to read |
-| `line_range` | Line range, 1-indexed. Formats: `from:to`, `from-to`, `[from:to]`, `[from-to]`. Also `:to`, `from:`, or a single number for that line to end |
-
-Reads a file and outputs the raw content in blocks, with no transformation (no line numbers, no tab/trailing-space visualization). Output is split into blocks of 100 lines (configurable via `core.file_read_block_size`). Each block is preceded by a header:
-
-```
------ $path - lines from X to Y -----
-```
-
-At the end, a footer is emitted. If the portion emitted reaches the end of the file, an EOF marker is shown:
-
-```
------ $path - EOF -----
-```
-
-If the portion does not go to the end of the file, the remaining line range is shown instead:
-
-```
------ $path - remaining lines from X to Y -----
-```
-
-### `mv` — Move files
-
-| Argument | Description |
-|----------|-------------|
-| `source` | File path |
-| `dest` | File path |
-
-Moves a file or directory. Fails if destination already exists or source not found.
-
-### `grep` — Print lines matching pattern with context
-
-| Argument | Description |
-|----------|-------------|
-| `pattern` | Regular expression |
-| `pathspec` | Glob expression for file names |
-
-Output uses `file_read`-style block headers (`----- /path - lines from X to Y -----`). Shows 1 context line before and after each match. Non-adjacent match groups are separated by blank lines. Supports `**` globstar. Line numbers in headers are 1-indexed. Output is limited to 500 content lines.
-
-### `sed` — Search and replace in files
-
-| Argument | Description |
-|----------|-------------|
-| `pattern` | Regular expression |
-| `replacement` | Replacement string |
-| `pathspec` | Glob expression for file names |
-
-In-place match and replace (no capturing groups). Returns list of changed files. Supports `**` globstar.
-
-### `edit` — Edit a file by replacing a block of text
-
-| Argument | Description |
-|----------|-------------|
-| `path` | File path |
-| `start_line_number` | The line number where `original_window` begins (1-indexed) |
-| `original_window` | Block of text to be replaced |
-| `modified_window` | Block of text to be inserted |
-
-Searches for `original_window` in the file at `path`. Applies the edit only if `start_line_number` is exact or off by at most 5 lines (and there's a single match within that range). Possible responses:
-
-- `ok`
-- `ok, start_line_number was wrong, it was X instead`
-- `ko: no match`
-- `ko: X matches found, ensure start_line_number is right`
-
-### `rm` — Delete a file or a directory
-
-| Argument | Description |
-|----------|-------------|
-| `path` | Path to delete |
-
-Recursive delete (`rm -rf`). Returns ok for nonexistent paths.
-
-### `stat` — Various info on files and directories
-
-| Argument | Description |
-|----------|-------------|
-| `path` | File or directory path |
-
-Returns:
-
-```
-Type: [file|directory]
-Size: [bytes], [human readable]
-Permissions: [read|write|execute]
-Owner: [username](uid=[uid])
-Group: [groupname](gid=[gid])
-Access: [ISO8601 timestamp]
-Modify: [ISO8601 timestamp]
-Change: [ISO8601 timestamp]
-Birth: [ISO8601 timestamp]
-```
-
-Birth time uses `statx` when available, falls back to change time otherwise. Permissions are relative to the current user.
-
-### `w3m-dump` — Fetch a webpage text
-
-| Argument | Description |
-|----------|-------------|
-| `url` | URL to fetch |
-
-Fetches a webpage, extracts the main readable content using Mozilla Readability, and converts it to Markdown. Only `http` and `https` URLs are supported. Connect timeout is 5 seconds, read timeout is 20 seconds. Response body is limited to 5 MB. If the resulting Markdown exceeds 200 KB, it is truncated and prefixed with `# PAGE TOO LONG - PARTIAL OUTPUT`.
-
-### `online_search` — Search topic online
-
-| Argument | Description |
-|----------|-------------|
-| `search_query` | Search query string |
-
-Searches DuckDuckGo and returns results with title, URL, and description. Returns `No results found` if nothing matches. Example output:
-
-```
-Title: This is a page
-Url: http://....
-Description:
-The page is about being
-a page. The description text can be
-multiline.
-
-Title: This is another page
-Url: http://....
-Description: A short description
-```
-
-### `available_commands` — List available commands
-
-No arguments.
-
-Lists all user-defined commands from the configuration, including their descriptions and expected arguments. Example output:
-
-```
-Command: build
-Arguments: target
-
-Command: test
-Arguments: no arguments are taken, invoke without arguments
-Description: Run tests
-
-Command: run
-Description: Run the main executable; target_folder is the directory to work with, config_file is the reference configuration to use.
-```
-
-### `run_command` — Run the command
-
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `name` | Yes | Name of the command to run |
-| `arguments` | No | Array of strings to pass to the command line |
-| `timeout` | Yes | Timeout in seconds |
-
-Validates the command name and argument count against the configuration, sanitizes input, and executes the command. Arguments are only accepted when the command defines an `arguments` list; passing arguments to a command that takes none is an error. Stdout and stderr are merged and returned untouched. On timeout, the process is sent SIGTERM, then SIGKILL after 5 seconds. If a timeout occurs, the output is prefixed with `Command timed out. Partial output.`.
-
-For example, with `build_cmdline=make` and `build_arguments=target`, calling `run_command` with `name="build"` and `arguments=["clean"]` executes `make clean`.
-
-### `examples` — Show usage examples for a tool
-
-| Argument | Description |
-|----------|-------------|
-| `tool_name` | Name of the tool to get examples for |
-
-Returns at least 3 examples of request/response pairs for the given tool. If the tool name is unknown, returns an error listing all available tool names.
-
-## Task Management
-
-Tasks are stored in `[root]/.llmdevkit/tasks.txt`. Each task has a system-assigned hierarchical ID, a status, and a description.
-
-Status markers:
-
-| Status | Marker |
-|--------|--------|
-| `created` | `[ ]` |
-| `in_progress` | `[_]` |
-| `completed` | `[X]` |
-
-Example file content:
-
-```
-1. [X] Design the API
-2. [_] Implement features
-2.1 [X] Add config loading
-2.2 [ ] Add error handling
-3. [ ] Write documentation
-```
-
-### `tasks_list` — List all tasks
-
-No arguments.
-
-Returns the content of the tasks file.
-
-### `task_create` — Append a task to the task list
-
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `description` | Yes | Task description |
-| `parent` | No | ID of the parent task |
-
-Returns the assigned ID and the current task list:
-
-```
-Created ID: 3
-Current Tasks:
-1. [X] Design the API
-2. [_] Implement features
-3. [ ] New task
-```
-
-When `parent` is provided, the new task becomes a child (e.g. `parent="2"` → new ID `2.1`).
-
-### `task_set_status` — Change status of a task
-
-| Argument | Description |
-|----------|-------------|
-| `ID` | Task ID |
-| `status` | One of: `created`, `in_progress`, `completed` |
-
-Returns the updated status and the current task list:
-
-```
-ID: 2 set to completed
-Current Tasks:
-1. [X] Design the API
-2. [X] Implement features
-```
-
-If the ID is not found, returns `Not found` followed by the current task list.
-
-### `task_delete` — Delete a task
-
-| Argument | Description |
-|----------|-------------|
-| `ID` | Task ID |
-
-Deletes the task and all its children. Returns `Done` or `Not found` followed by the current task list:
-
-```
-Done
-Current Tasks:
-1. [X] Design the API
-3. [ ] Write documentation
-```
-
-### `tasks_clear` — Clear all tasks
-
-No arguments.
+| Tool Name | Description | Argument Name | Description |
+|-----------|-------------|---------------|-------------|
+| `ls` | | `pathspec:string *` | Glob expression for file names |
+| `file_read` | Read file | `path:string *` | |
+| | | `line_range:string *` | Line range, 1-indexed. Formats: from:to, from-to, [from:to], [from-to] |
+| `file_create` | | `path:string *` | |
+| | | `content:string *` | |
+| `mv` | Move files | `source:string *` | |
+| | | `dest:string *` | |
+| `grep` | Print lines matching pattern with context (`grep -A1 -B1`) | `pattern:string *` | Regexp |
+| | | `pathspec:string *` | Glob expression for file names |
+| `sed` | Search and replace in files (`sed -i`) | `pattern:string *` | Regexp |
+| | | `replacement:string *` | |
+| | | `pathspec:string *` | Glob expression for file names |
+| `edit` | | `path:string *` | File path |
+| | | `start_line_number:number *` | Line number where original_window begins (1-indexed) |
+| | | `original_window:string *` | Text to be replaced |
+| | | `modified_window:string *` | Text to be inserted |
+| `rm` | | `path:string *` | File path |
+| `stat` | Infos on files and directories | `path:string *` | |
+| `tasks_list` | List of tasks ([ ] created, [_] in progress, [X] completed) | | |
+| `task_create` | | `description:string *` | |
+| | | `parent:string` | ID of parent task, optional |
+| `task_set_status` | Change status of task | `ID:string *` | Task ID |
+| | | `status:string *` | One of: created, in_progress, completed |
+| `task_delete` | | `ID:string *` | |
+| `tasks_clear` | Clear all tasks | | |
+| `w3m-dump` | Fetch a webpage text (like `w3m-dump`) | `url:string *` | |
+| `online_search` | Search online | `search_query:string *` | |
+| `examples` | Show usage examples for a tool | `tool_name:string *` | |
+| `available_commands` | List available commands | | |
+| `run_command` | Run the command from available_commands | `name:string *` | |
+| | | `arguments:array` | Array of strings to pass to the command line |
+| | | `timeout:number *` | Timeout in seconds |
+| `relevant_code` | *(indexer)* | `prompt:string *` | |
+| `search_symbol_in_code` | *(indexer)* | `symbol_name:string *` | |
+| `memory_put` | Add a phrase (fact) to the system | `fact:string *` | Fact phrase to memorize |
+| `relevant_memory` | Search relevant facts from prompt string | `prompt:string *` | |
+| `memory_extract` | Extract facts from text and store them in memory, deduplicating against existing facts | `text:string *` | Text to extract facts from (conversation, notes, document) |
 
 ### `mcps` — Upstream MCP server proxying
 
