@@ -99,7 +99,7 @@ export async function selectConversation(id) {
   if (conv) {
     document.getElementById('agentSelect').value = conv.agent || S.agents[0]?.name || '';
     if (conv.agent) await loadToolDefs(conv.agent);
-    rebuildTaskState(conv);
+    await rebuildTaskState(conv);
     renderMessages(conv);
     updateState(conv);
   }

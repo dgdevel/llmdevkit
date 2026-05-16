@@ -81,6 +81,8 @@ type Conversation struct {
 
 	ACPSessionID string `json:"acp_session_id,omitempty"`
 	Initialized  bool   `json:"-"`
+
+	PendingTokenCount int `json:"-"` // set by token_stats side channel, applied when prompt finishes
 }
 
 type jsonlLine struct {
@@ -185,6 +187,7 @@ func main() {
 	mux.HandleFunc("/api/conversations/", srv.handleConversationActions)
 	mux.HandleFunc("/api/ask/", srv.handleAskAnswer)
 	mux.HandleFunc("/api/tasks/delete", srv.handleTaskDelete)
+	mux.HandleFunc("/api/tasks", srv.handleTasksRead)
 	mux.HandleFunc("/api/sidechannel", srv.handleSideChannel)
 	mux.HandleFunc("/api/events", srv.handleSSE)
 
@@ -1143,10 +1146,16 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
 
+	// Mark continuation if we reconnected and conversation has prior messages
+	isContinuation := justConnected && len(conv.Messages) > 1
+
 	contentBlock := acp.NewContentBlockText(promptText)
 	promptReq := &acp.PromptRequest{
 		SessionID: acp.SessionID(conv.ACPSessionID),
 		Prompt:    []acp.ContentBlock{contentBlock},
+	}
+	if isContinuation {
+		promptReq.Meta = map[string]any{"continuation": true}
 	}
 
 	s.dlog.Log("runACPPrompt conv=%s sending Prompt RPC...", convID)
@@ -1173,6 +1182,25 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 		s.appendJSONL(convID, "prompt_response", map[string]string{
 			"stop_reason": string(resp.StopReason),
 		})
+	}
+
+	// Apply any pending token count to the last llm message.
+	// Token stats may arrive before the llm content (via side channel vs ACP stream).
+	s.mu.Lock()
+	var finalTokenCount int
+	if conv, ok := s.convs[convID]; ok && conv.PendingTokenCount > 0 {
+		finalTokenCount = conv.PendingTokenCount
+		for i := len(conv.Messages) - 1; i >= 0; i-- {
+			if conv.Messages[i].Type == "llm" {
+				conv.Messages[i].TokenCount = finalTokenCount
+				break
+			}
+		}
+		conv.PendingTokenCount = 0
+	}
+	s.mu.Unlock()
+	if finalTokenCount > 0 {
+		s.broadcastSSE(convID, "token_stats", TokenStats{TotalTokens: finalTokenCount})
 	}
 
 	s.setConvRunning(convID, false)
@@ -1340,7 +1368,7 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 
 		s.mu.Lock()
 		if conv, ok := s.convs[convID]; ok {
-			// Set token count on the last llm bubble
+			conv.PendingTokenCount = stats.TotalTokens
 			for i := len(conv.Messages) - 1; i >= 0; i-- {
 				if conv.Messages[i].Type == "llm" {
 					conv.Messages[i].TokenCount = stats.TotalTokens
@@ -1537,6 +1565,22 @@ func (s *Server) waitForAskAnswer(convID, askID, askType string, payload interfa
 }
 
 // ── SSE ─────────────────────────────────────────────────────────────────────
+
+func (s *Server) handleTasksRead(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	tools.TasksMu.Lock()
+	defer tools.TasksMu.Unlock()
+	tasks, err := tools.ReadTasks()
+	if err != nil {
+		// No tasks file = empty list
+		writeJSON(w, []interface{}{})
+		return
+	}
+	writeJSON(w, tasks)
+}
 
 func (s *Server) handleTaskDelete(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -1767,7 +1811,6 @@ func (s *Server) loadConversations() error {
 			case "token_stats":
 				var ts TokenStats
 				json.Unmarshal(line.Payload, &ts)
-				// Set token count on the last llm bubble
 				for i := len(conv.Messages) - 1; i >= 0; i-- {
 					if conv.Messages[i].Type == "llm" {
 						conv.Messages[i].TokenCount = ts.TotalTokens

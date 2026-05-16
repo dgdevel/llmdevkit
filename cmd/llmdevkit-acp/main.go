@@ -222,7 +222,15 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 	var tcIDMu sync.Mutex
 	tcIDMap := make(map[string]acp.ToolCallID)
 
-	r := runner.NewRunner(llmDef, agentCfg, registry, a.agentCfg,
+	// Detect continuation: server signals via _meta that this is a resumed conversation
+	isContinuation := false
+	if params.Meta != nil {
+		if v, ok := params.Meta["continuation"].(bool); ok && v {
+			isContinuation = true
+		}
+	}
+
+	runnerOpts := []runner.Option{
 		runner.WithRootDir(a.rootDir),
 		runner.WithTextCallback(func(text string) {
 			stream.SendText(promptCtx, text)
@@ -272,7 +280,11 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 				})
 			}
 		}),
-	)
+	}
+	if isContinuation {
+		runnerOpts = append(runnerOpts, runner.WithSkipConversationBegin())
+	}
+	r := runner.NewRunner(llmDef, agentCfg, registry, a.agentCfg, runnerOpts...)
 
 	fullMessages, result, err := r.RunPrompt(promptCtx, messages, promptText)
 	if err != nil {

@@ -58,36 +58,54 @@ export function renderTaskList() {
       const idx = parseInt(delBtn.dataset.idx);
       const task = S.taskEntries[idx];
       if (task) {
-        await fetch('/api/tasks/delete', {
+        const resp = await fetch('/api/tasks/delete', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({id: task.id})
         });
+        const data = await resp.json();
+        if (data.tasks) {
+          const statusMap = {'created': 'pending', 'in_progress': 'in_progress', 'completed': 'completed'};
+          S.taskEntries = data.tasks.map(t => ({
+            id: t.ID || t.id,
+            content: t.Description || t.description || t.content || '',
+            status: statusMap[t.Status || t.status] || t.status || 'pending'
+          }));
+        }
       }
-      S.taskEntries.splice(idx, 1);
       renderTaskList();
     });
   });
 }
 
-export function rebuildTaskState(conv) {
+export async function rebuildTaskState(conv) {
   S.toolCallIdToName = {};
   S.taskEntries = [];
-  if (!conv?.messages) return;
-  for (const m of conv.messages) {
-    if (m.type === 'tool_request') {
-      try {
-        const parsed = JSON.parse(m.content);
-        const tcId = parsed.toolCallId || parsed.toolCallID || parsed.id;
-        const tcName = parsed.title || parsed.name || m.name;
-        if (tcId) S.toolCallIdToName[tcId] = tcName;
-      } catch(e) {}
-    }
-    if (m.type === 'tool_response') {
-      const lookupKey = m.id || m.name;
-      const realToolName = S.toolCallIdToName[lookupKey] || m.name;
-      updateTasksFromToolResponse(realToolName, m.content);
+  // Build toolCallIdToName from conversation messages (still needed for rendering)
+  if (conv?.messages) {
+    for (const m of conv.messages) {
+      if (m.type === 'tool_request') {
+        try {
+          const parsed = JSON.parse(m.content);
+          const tcId = parsed.toolCallId || parsed.toolCallID || parsed.id;
+          const tcName = parsed.title || parsed.name || m.name;
+          if (tcId) S.toolCallIdToName[tcId] = tcName;
+        } catch(e) {}
+      }
     }
   }
+  // Fetch actual tasks from disk (source of truth)
+  try {
+    const r = await fetch('/api/tasks');
+    const tasks = await r.json();
+    if (Array.isArray(tasks) && tasks.length > 0) {
+      const statusMap = {'created': 'pending', 'in_progress': 'in_progress', 'completed': 'completed'};
+      S.taskEntries = tasks.map(t => ({
+        id: t.ID || t.id,
+        content: t.Description || t.description || t.content || '',
+        status: statusMap[t.Status || t.status] || t.status || 'pending'
+      }));
+    }
+  } catch(e) {}
   renderTaskList();
 }

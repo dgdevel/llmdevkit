@@ -93,10 +93,11 @@ type Runner struct {
 	registry     *ToolRegistry
 	allAgents    *agents.Config // for agents_available / agent_invoke
 	rootDir      string         // project directory, for reading AGENTS.md
-	onText       func(text string)
-	onToolStart  func(id, title, kind string, arguments json.RawMessage)
-	onToolUpdate func(id, status, content string)
-	onTokenStats func(TokenStats)
+	skipConvBegin bool
+	onText        func(text string)
+	onToolStart   func(id, title, kind string, arguments json.RawMessage)
+	onToolUpdate  func(id, status, content string)
+	onTokenStats  func(TokenStats)
 }
 
 type Option func(*Runner)
@@ -119,6 +120,10 @@ func WithTokenStatsCallback(fn func(TokenStats)) Option {
 
 func WithRootDir(dir string) Option {
 	return func(r *Runner) { r.rootDir = dir }
+}
+
+func WithSkipConversationBegin() Option {
+	return func(r *Runner) { r.skipConvBegin = true }
 }
 
 func NewRunner(llmCfg *llms.LLMConfig, agentCfg *agents.AgentConfig, registry *ToolRegistry, allAgents *agents.Config, opts ...Option) *Runner {
@@ -192,7 +197,7 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 	dlog := debuglog.For("runner")
 	dlog.Log("RunPrompt msg_count=%d user_prompt_len=%d", len(messages), len(userPrompt))
 	// Execute on_conversation_begin hooks (only on first message)
-	if len(messages) <= 1 {
+	if !r.skipConvBegin && len(messages) <= 1 {
 		hookCtx, err := r.executeHooks(ctx, agents.HookConversationBegin, userPrompt)
 		if err != nil {
 			return nil, "", fmt.Errorf("hook conversation_begin: %w", err)

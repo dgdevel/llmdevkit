@@ -105,11 +105,16 @@ export async function sendPrompt() {
     if (data.conversation) {
       Object.assign(conv, data.conversation);
     }
+    if (data.error) {
+      conv.messages.push({type:'error', content: data.error});
+      conv.running = false;
+      S.running = false;
+    }
   } catch(e) {
     conv.messages.push({type:'error', content: 'Fetch error: ' + e.message});
+    conv.running = false;
+    S.running = false;
   }
-  conv.running = false;
-  S.running = false;
   renderMessages(conv);
   renderConvList();
   updateState(conv);
