@@ -143,8 +143,8 @@ export async function undoLastPrompt() {
       return;
     }
     const data = await r.json();
-    if (data.conversation) {
-      Object.assign(conv, data.conversation);
+    if (data.messages) {
+      Object.assign(conv, data);
     }
     S.taskEntries = [];
     S.toolCallIdToName = {};
@@ -154,5 +154,34 @@ export async function undoLastPrompt() {
     scrollToBottom();
   } catch(e) {
     alert('Undo error: ' + e.message);
+  }
+}
+
+export async function trimConversation() {
+  const conv = getActiveConv();
+  if (!conv) return;
+  if (conv.running) { alert('Cannot trim while conversation is running.'); return; }
+  const hasTools = (conv.messages || []).some(m => m.type === 'tool_request' || m.type === 'tool_response');
+  if (!hasTools) { alert('No tool calls or tool replies to trim.'); return; }
+  if (!confirm('Remove all tool calls and tool replies from conversation history? User prompts, thinking blocks, and LLM responses will be kept.')) return;
+  try {
+    const r = await fetch('/api/conversations/' + conv.id + '/trim', {method:'POST'});
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      alert(data.error || 'Trim failed');
+      return;
+    }
+    const data = await r.json();
+    if (data.messages) {
+      Object.assign(conv, data);
+    }
+    S.taskEntries = [];
+    S.toolCallIdToName = {};
+    renderMessages(conv);
+    renderConvList();
+    updateState(conv);
+    scrollToBottom();
+  } catch(e) {
+    alert('Trim error: ' + e.message);
   }
 }

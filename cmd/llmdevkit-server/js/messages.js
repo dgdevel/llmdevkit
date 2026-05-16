@@ -54,8 +54,8 @@ export function scrollToBottom() {
 export function renderBubble(m) {
   switch(m.type) {
     case 'user': return bubbleHTML('user', 'You', md(m.content), false, false, null, m.timestamp);
-    case 'llm': return bubbleHTML('llm', 'Assistant', md(m.content), false, false, null, m.timestamp);
-    case 'thinking': return bubbleHTML('thinking', 'Thinking', md(m.content), false, true, briefText(m.content), m.timestamp);
+    case 'llm': return bubbleHTML('llm', 'Assistant Response', md(m.content), false, false, null, m.timestamp);
+    case 'thinking': return bubbleHTML('thinking', 'Assistant Thinking', md(m.content), false, true, briefText(m.content), m.timestamp);
     case 'tool_request': return renderToolRequest(m);
     case 'tool_response': return renderToolResponse(m);
     case 'ask_open_ended': return renderAskOpenEnded(m);

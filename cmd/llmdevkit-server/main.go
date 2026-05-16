@@ -477,6 +477,8 @@ func (s *Server) handleConversationActions(w http.ResponseWriter, r *http.Reques
 		s.handleConvRename(w, r, convID)
 	case "undo":
 		s.handleConvUndo(w, r, convID)
+	case "trim":
+		s.handleConvTrim(w, r, convID)
 	default:
 		http.Error(w, "unknown action", 404)
 	}
@@ -741,6 +743,52 @@ func (s *Server) handleConvUndo(w http.ResponseWriter, r *http.Request, convID s
 	writeJSON(w, conv)
 }
 
+func (s *Server) handleConvTrim(w http.ResponseWriter, r *http.Request, convID string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	s.mu.Lock()
+	conv, ok := s.convs[convID]
+	if !ok {
+		s.mu.Unlock()
+		http.Error(w, "not found", 404)
+		return
+	}
+	if conv.Running {
+		s.mu.Unlock()
+		http.Error(w, "conversation is running", 400)
+		return
+	}
+
+	// Filter out tool_request and tool_response messages
+	filtered := make([]BubbleMessage, 0, len(conv.Messages))
+	for _, m := range conv.Messages {
+		if m.Type == "tool_request" || m.Type == "tool_response" {
+			continue
+		}
+		filtered = append(filtered, m)
+	}
+
+	if len(filtered) == len(conv.Messages) {
+		s.mu.Unlock()
+		http.Error(w, "no tool messages to trim", 400)
+		return
+	}
+
+	conv.Messages = filtered
+	conv.TokenStats = TokenStats{}
+	convCopy := *conv
+	convCopy.Messages = make([]BubbleMessage, len(conv.Messages))
+	copy(convCopy.Messages, conv.Messages)
+	s.mu.Unlock()
+
+	s.rewriteJSONL(convID, conv)
+
+	s.broadcastSSE("", "conversation_updated", &convCopy)
+	writeJSON(w, conv)
+}
+
 func (s *Server) rewriteJSONL(convID string, conv *Conversation) {
 	f, err := os.Create(s.convFile(convID))
 	if err != nil {
@@ -765,6 +813,10 @@ func (s *Server) rewriteJSONL(convID string, conv *Conversation) {
 
 	for _, m := range conv.Messages {
 		enc.Encode(jsonlLine{Type: "bubble", Payload: mustMarshal(&m)})
+	}
+	f.Sync()
+	if fi, err := f.Stat(); err == nil {
+		conv.FileSize = fi.Size()
 	}
 }
 
