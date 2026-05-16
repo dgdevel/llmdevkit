@@ -300,6 +300,7 @@ func main() {
 			s.AddTool(mcp.NewTool("search_symbol_in_code",
 				mcp.WithString("symbol_name",
 					mcp.Required(),
+					mcp.Description("Name only, no types"),
 				),
 			), tools.SearchSymbolInCodeHandler)
 		}
