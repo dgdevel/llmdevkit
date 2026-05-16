@@ -45,7 +45,8 @@ function handleEvent(ev) {
         agent: remote.agent,
         system_prompt: remote.system_prompt,
         tools: remote.tools,
-        acp_session_id: remote.acp_session_id
+        acp_session_id: remote.acp_session_id,
+        file_size: remote.file_size
       });
     }
     renderConvList();
@@ -134,7 +135,7 @@ function handleSessionUpdate(conv, bubble) {
         return;
       }
     } else {
-      conv.messages.push({type: bubble.type, content: bubble.content, _merging: true, timestamp: bubble.timestamp});
+      conv.messages.push({type: bubble.type, content: bubble.content, _merging: true, timestamp: bubble.timestamp, token_count: bubble.token_count});
     }
     if (conv.id === S.activeConvId) scheduleRender(conv);
     return;

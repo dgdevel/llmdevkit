@@ -432,6 +432,7 @@ func (s *Server) handleConversations(w http.ResponseWriter, r *http.Request) {
 			Agent:        req.Agent,
 			SystemPrompt: req.SystemPrompt,
 			Messages:     []BubbleMessage{},
+			Title:        time.Now().Format("2006-01-02T15:04:05"),
 		}
 		s.dlog.Log("POST /api/conversations agent=%s conv_id=%s", req.Agent, conv.ID)
 		s.mu.Lock()
@@ -439,6 +440,9 @@ func (s *Server) handleConversations(w http.ResponseWriter, r *http.Request) {
 		s.convOrder = append([]string{conv.ID}, s.convOrder...)
 		s.mu.Unlock()
 		s.appendJSONL(conv.ID, "conversation_created", conv)
+		if fi, err := os.Stat(s.convFile(conv.ID)); err == nil {
+			conv.FileSize = fi.Size()
+		}
 		s.broadcastSSE("", "conversation_created", conv)
 		writeJSON(w, conv)
 
@@ -572,17 +576,7 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 		Timestamp: nowISO(),
 	})
 
-	// Auto-title from first prompt
-	if conv.Title == "" && len(req.Prompt) > 0 {
-		maxLen := 40
-		if len(req.Prompt) < maxLen {
-			maxLen = len(req.Prompt)
-		}
-		conv.Title = strings.TrimSpace(req.Prompt[:maxLen])
-		if len(req.Prompt) > maxLen {
-			conv.Title += "…"
-		}
-	}
+
 
 	s.appendJSONL(convID, "init", map[string]interface{}{
 		"agent":        conv.Agent,
@@ -1239,6 +1233,12 @@ func (s *Server) addBubble(convID string, b BubbleMessage) {
 		}
 	}
 
+	// Consume pending token count for new llm messages
+	if b.Type == "llm" && conv.PendingTokenCount > 0 {
+		b.TokenCount = conv.PendingTokenCount
+		conv.PendingTokenCount = 0
+	}
+
 	conv.Messages = append(conv.Messages, b)
 	s.mu.Unlock()
 
@@ -1369,17 +1369,10 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		if conv, ok := s.convs[convID]; ok {
 			conv.PendingTokenCount = stats.TotalTokens
-			for i := len(conv.Messages) - 1; i >= 0; i-- {
-				if conv.Messages[i].Type == "llm" {
-					conv.Messages[i].TokenCount = stats.TotalTokens
-					break
-				}
-			}
 		}
 		s.mu.Unlock()
 
 		s.appendJSONL(convID, "token_stats", stats)
-		s.broadcastSSE(convID, "token_stats", stats)
 		w.WriteHeader(204)
 		return
 	}
@@ -1739,6 +1732,7 @@ func (s *Server) loadConversations() error {
 			Messages: []BubbleMessage{},
 		}
 
+		var pendingTC int
 		scanner := bufio.NewScanner(f)
 		scanner.Buffer(make([]byte, 1024*1024), 10*1024*1024)
 		for scanner.Scan() {
@@ -1784,6 +1778,10 @@ func (s *Server) loadConversations() error {
 			case "bubble":
 				var b BubbleMessage
 				json.Unmarshal(line.Payload, &b)
+				if b.Type == "llm" && pendingTC > 0 {
+					b.TokenCount = pendingTC
+					pendingTC = 0
+				}
 				conv.Messages = append(conv.Messages, b)
 
 			case "bubble_merge":
@@ -1811,12 +1809,7 @@ func (s *Server) loadConversations() error {
 			case "token_stats":
 				var ts TokenStats
 				json.Unmarshal(line.Payload, &ts)
-				for i := len(conv.Messages) - 1; i >= 0; i-- {
-					if conv.Messages[i].Type == "llm" {
-						conv.Messages[i].TokenCount = ts.TotalTokens
-						break
-					}
-				}
+				pendingTC = ts.TotalTokens
 			}
 		}
 		f.Close()

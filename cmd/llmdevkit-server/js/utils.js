@@ -23,9 +23,9 @@ export function briefText(s) {
 
 export function formatFileSize(bytes) {
   if (!bytes || bytes === 0) return '';
-  if (bytes < 1024) return bytes + 'B';
-  if (bytes < 1024*1024) return (bytes/1024).toFixed(1).replace(/\.0$/,'') + 'K';
-  return (bytes/(1024*1024)).toFixed(1).replace(/\.0$/,'') + 'M';
+  if (bytes < 1024) return bytes + 'b';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1).replace(/\.0$/,'') + 'Kb';
+  return (bytes/(1024*1024)).toFixed(1).replace(/\.0$/,'') + 'Mb';
 }
 
 export function formatTokenCount(n) {
