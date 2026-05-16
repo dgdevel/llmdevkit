@@ -154,9 +154,11 @@ func (idx *Indexer) Start() error {
 			}
 		}
 
+		embedderFlags := strings.Fields(llamaCfg["embedder_flags"])
+
 		t := time.Now()
 		fmt.Fprintf(os.Stderr, "[INFO] Starting embedder server...\n")
-		idx.embedder, err = StartServer(idx.ctx, llamaPath, embedderRepo, "--embedding")
+		idx.embedder, err = StartServer(idx.ctx, llamaPath, embedderRepo, append(embedderFlags, "--embedding")...)
 		if err != nil {
 			return fmt.Errorf("starting embedder: %w", err)
 		}
