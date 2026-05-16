@@ -24,6 +24,12 @@ tag:
 	git push origin "v$(VERSION)"
 	@echo "Tagged and pushed v$(VERSION)"
 
+release: dist
+	gh release create "v$(VERSION)" dist/llmdevkit-$(VERSION).tar.gz \
+		--title "v$(VERSION)" \
+		--notes "Release v$(VERSION)"
+	@echo "Published GitHub release v$(VERSION)"
+
 clean:
 	rm -f $(BINS)
 	rm -rf dist/
@@ -33,4 +39,4 @@ test:
 	go vet ./...
 	go test ./... || go test -v ./...
 
-.PHONY: compile dist tag clean test
+.PHONY: compile dist tag release clean test
