@@ -6,5 +6,5 @@ Test with `run_command` passing `test`.
 
 cmd/ contains all the executables.
 
-Web UI in cmd/llmdevkit-server/ directory.
+Web UI in cmd/llmdevkit/ directory.
 

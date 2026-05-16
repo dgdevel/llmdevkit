@@ -12,27 +12,27 @@ The project is a merge of my previous two projects [nixdevkit](/dgdevel/nixdevki
 
 ### Install
 
-Copy the six executable in your $PATH.
+Copy the `llmdevkit` executable in your $PATH.
 
-## Executables
+## Commands
 
-| Binary | Description |
-|--------|-------------|
-| `llmdevkit-config` | Manage global and local configuration files |
-| `llmdevkit-setup` | Download and configure llama.cpp for embedding/reranking |
-| `llmdevkit-indexer` | Build and query the code index |
-| `llmdevkit-mcp` | MCP server — file tools, task management, command runner, code search, memory |
-| `llmdevkit-acp` | ACP server — agent harness with LLM orchestration, tool routing, and sub-agent invocation |
-| `llmdevkit-server` | Web UI server — chat interface for agents with real-time streaming, conversation persistence, human-in-the-loop tools, and browser notifications |
+| Command | Description |
+|----------|-------------|
+| `llmdevkit config` | Manage global and local configuration files |
+| `llmdevkit setup` | Download and configure llama.cpp for embedding/reranking |
+| `llmdevkit indexer` | Build and query the code index |
+| `llmdevkit mcp` | MCP server — file tools, task management, command runner, code search, memory |
+| `llmdevkit acp` | ACP server — agent harness with LLM orchestration, tool routing, and sub-agent invocation |
+| `llmdevkit server` | Web UI server — chat interface for agents with real-time streaming, conversation persistence, human-in-the-loop tools, and browser notifications |
 
 Configuration is stored in `.llmdevkit/` (local, per-project) and `$XDG_CONFIG_HOME/llmdevkit/` (global), merged with local overriding global. Both directories are invisible to all MCP tools.
 
-- [llmdevkit-config](#llmdevkit-config)
-- [llmdevkit-setup](#llmdevkit-setup)
-- [llmdevkit-indexer](#llmdevkit-indexer)
-- [llmdevkit-mcp](#llmdevkit-mcp)
-- [llmdevkit-acp](#llmdevkit-acp)
-- [llmdevkit-server](#llmdevkit-server)
+- [llmdevkit config](#llmdevkit-config)
+- [llmdevkit setup](#llmdevkit-setup)
+- [llmdevkit indexer](#llmdevkit-indexer)
+- [llmdevkit mcp](#llmdevkit-mcp)
+- [llmdevkit acp](#llmdevkit-acp)
+- [llmdevkit server](#llmdevkit-server)
 
 ---
 
@@ -41,8 +41,8 @@ Configuration is stored in `.llmdevkit/` (local, per-project) and `$XDG_CONFIG_H
 Manage the configuration file.
 
 ```
-./llmdevkit-config [--global] <get|set> <namespace.key> [value]
-./llmdevkit-config <root> <get|set> <namespace.key> [value]
+llmdevkit config [--global] <get|set> <namespace.key> [value]
+llmdevkit config <root> <get|set> <namespace.key> [value]
 ```
 
 With `--global`, operations target the global configuration file instead of the local one. The `--global` flag cannot be combined with a root directory argument.
@@ -50,10 +50,10 @@ With `--global`, operations target the global configuration file instead of the 
 Examples:
 
 ```
-./llmdevkit-config set core.readonly true
-./llmdevkit-config --global set core.readonly yes
-./llmdevkit-config get core.readonly
-./llmdevkit-config /path/to/project set core.readonly yes
+llmdevkit config set core.readonly true
+llmdevkit config --global set core.readonly yes
+llmdevkit config get core.readonly
+llmdevkit config /path/to/project set core.readonly yes
 ```
 
 ### `core.readonly`
@@ -84,11 +84,11 @@ The `commands` section lets you define named commands that can be listed and exe
 Example configuration:
 
 ```
-./llmdevkit-config set commands.list build,test,run
-./llmdevkit-config set commands.build_cmdline "make"
-./llmdevkit-config set commands.build_arguments "target"
-./llmdevkit-config set commands.test_cmdline "make test"
-./llmdevkit-config set commands.test_description "Run tests"
+llmdevkit config set commands.list build,test,run
+llmdevkit config set commands.build_cmdline "make"
+llmdevkit config set commands.build_arguments "target"
+llmdevkit config set commands.test_cmdline "make test"
+llmdevkit config set commands.test_description "Run tests"
 ```
 
 ---
@@ -98,7 +98,7 @@ Example configuration:
 Download and configure llama.cpp for embedding and reranking models.
 
 ```
-./llmdevkit-setup [--global] [rootdirectory]
+llmdevkit setup [--global] [rootdirectory]
 ```
 
 With `--global`, llama.cpp binaries and models are stored in the global config directory (`$XDG_CONFIG_HOME/llmdevkit/`), and the `[llama]` configuration is written there. This is recommended so that all projects share the same binaries and models. A root directory cannot be specified when using `--global`.
@@ -128,7 +128,7 @@ The index storage (vector database) is always local to each project at `[root]/.
 Build and query the code index. The initial index can take several minutes depending on project size.
 
 ```
-echo "reindex" | ./llmdevkit-indexer [rootdirectory]
+echo "reindex" | llmdevkit indexer [rootdirectory]
 ```
 
 Wait for the `ok` response, then start the MCP server with `--enable-indexer`. Subsequent startups will only index changed files (incremental via content hash tracking).
@@ -142,7 +142,7 @@ MCP server exposing Unix-inspired file tools, task management, command runner, c
 ### Usage
 
 ```
-./llmdevkit-mcp [--stdio|--http] [--address host:port] [--ignore pattern] [--show tools] [--hide tools] [--enable-indexer] [--enable-memory] [rootdirectory]
+llmdevkit mcp [--stdio|--http] [--address host:port] [--ignore pattern] [--show tools] [--hide tools] [--enable-indexer] [--enable-memory] [rootdirectory]
 ```
 
 All paths are virtual — `/` maps to the root directory. Path traversal is blocked.
@@ -201,7 +201,7 @@ All paths are virtual — `/` maps to the root directory. Path traversal is bloc
 
 ### `mcps` — Upstream MCP server proxying
 
-`llmdevkit-mcp` can proxy tools from upstream MCP servers, making them available as if they were built-in. Configuration is loaded from both global (`$XDG_CONFIG_HOME/llmdevkit/mcps.yml`) and local (`[root]/.llmdevkit/mcps.yml`), merged with local overriding global.
+`llmdevkit mcp` can proxy tools from upstream MCP servers, making them available as if they were built-in. Configuration is loaded from both global (`$XDG_CONFIG_HOME/llmdevkit/mcps.yml`) and local (`[root]/.llmdevkit/mcps.yml`), merged with local overriding global.
 
 ```yaml
 mcps:
@@ -245,7 +245,7 @@ When `tools` is omitted, all upstream tools are proxied. When present, only list
 
 ### Code Indexer
 
-Requires `--enable-indexer`. Provides `relevant_code` (semantic code search) and `search_symbol_in_code` (symbol substring search). Powered by llama.cpp embedding and reranking models. See [llmdevkit-setup](#llmdevkit-setup) for configuration.
+Requires `--enable-indexer`. Provides `relevant_code` (semantic code search) and `search_symbol_in_code` (symbol substring search). Powered by llama.cpp embedding and reranking models. See [llmdevkit setup](#llmdevkit-setup) for configuration.
 
 ### Memory
 
@@ -283,7 +283,7 @@ llms:
 
 ### `mcps.yml` — MCP tool servers
 
-Same format as [llmdevkit-mcp upstream proxying](#mcps--upstream-mcp-server-proxying). Defines MCP servers whose tools are available to agents. Supports `url` (streamable HTTP), `sse`, and `stdio` transports.
+Same format as [llmdevkit mcp upstream proxying](#mcps--upstream-mcp-server-proxying). Defines MCP servers whose tools are available to agents. Supports `url` (streamable HTTP), `sse`, and `stdio` transports.
 
 ### `agents.yml` — Agent definitions
 
@@ -313,7 +313,7 @@ The `tools` field is a space-separated list. Each token can be:
 | Token | Description |
 |-------|-------------|
 | A name from `mcps.yml` | All tools from that MCP server are attached |
-| `devkit` | In-process `llmdevkit-mcp` instance (file tools, tasks, commands, etc.) |
+| `devkit` | In-process `llmdevkit mcp` instance (file tools, tasks, commands, etc.) |
 | `agents` | Sub-agent invocation tools: `agents_available` (list agents) and `agent_invoke` (run agent with prompt). Each sub-agent invocation uses a fresh context — no conversation sharing. |
 
 #### Hooks
@@ -323,7 +323,7 @@ Hooks are automatic tool calls at specific lifecycle points. Each hook maps tool
 ### Usage
 
 ```
-./llmdevkit-acp
+llmdevkit acp
 ```
 
 Communicates over stdio using the ACP JSON-RPC protocol. Designed to be launched by an ACP-compatible client.
@@ -332,10 +332,10 @@ Communicates over stdio using the ACP JSON-RPC protocol. Designed to be launched
 
 ## llmdevkit-server
 
-A web-based chat UI server that provides a browser interface for interacting with agents through `llmdevkit-acp`. Manages conversations, streams LLM responses in real-time, and surfaces human-in-the-loop tools (questions, approvals) as interactive UI elements.
+A web-based chat UI server that provides a browser interface for interacting with agents through `llmdevkit acp`. Manages conversations, streams LLM responses in real-time, and surfaces human-in-the-loop tools (questions, approvals) as interactive UI elements.
 
 ```
-./llmdevkit-server [--enable-indexer]
+llmdevkit server [--enable-indexer]
 ```
 
 Listens on `http://localhost:18681` and serves a single-page chat application.
@@ -355,10 +355,10 @@ Listens on `http://localhost:18681` and serves a single-page chat application.
 - **Message queue** — enqueue prompts while an agent turn is running; queued messages are sent sequentially once the current turn completes
 - **Task management UI** — task list panel that parses `task_create`/`task_set_status`/`task_delete`/`tasks_list`/`tasks_clear` tool responses and renders status checkboxes; supports deleting tasks via the UI
 - **Token usage tracking** — displays cumulative prompt/completion token counts and LLM call count
-- **ACP orchestration** — spawns `llmdevkit-acp` as a subprocess over stdio, communicates via ACP JSON-RPC, and proxies all session updates to the browser
+- **ACP orchestration** — spawns `llmdevkit acp` as a subprocess over stdio, communicates via ACP JSON-RPC, and proxies all session updates to the browser
 - **Side channel** — HTTP endpoint (`/api/sidechannel`) that the ACP subprocess uses to forward ask-tool requests, token stats, and tool definition caches back to the server
 - **MCP tool definitions** — resolves tool schemas from configured MCP servers and the in-process devkit tools for display in the UI
-- **`--enable-indexer` flag** — passed through to `llmdevkit-acp` via environment variable to enable code indexing tools
+- **`--enable-indexer` flag** — passed through to `llmdevkit acp` via environment variable to enable code indexing tools
 - **Browser notifications** — optional service worker delivers desktop notifications when an agent needs input (ask tools) or finishes a turn; bell icon in top bar toggles on/off; notifications are clickable and reopen the tab
 
 ### REST API

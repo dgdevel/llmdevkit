@@ -1,5 +1,5 @@
 # MCP tool servers available to agents.
-# The "devkit" special name in agents.yml provides an in-process llmdevkit-mcp
+# The "devkit" special name in agents.yml provides an in-process llmdevkit mcp
 # instance, so no explicit entry is needed here for file tools.
 # Add upstream MCP servers below if you have them.
 

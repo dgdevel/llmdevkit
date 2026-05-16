@@ -64,7 +64,7 @@ func (s *Store) AddChunks(ctx context.Context, chunks []Chunk) error {
 			ID:      FmtChunkID(c.FilePath, c.LineStart, c.LineEnd),
 			Content: c.Content,
 			Metadata: map[string]string{
-				"source":     "llmdevkit-indexer",
+				"source":     "llmdevkit indexer",
 				"file_path":  c.FilePath,
 				"line_start": strconv.Itoa(c.LineStart),
 				"line_end":   strconv.Itoa(c.LineEnd),

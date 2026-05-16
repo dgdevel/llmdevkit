@@ -296,7 +296,7 @@ func (idx *Indexer) HandleRetrieve(query string) ([]RetrieveResult, error) {
 	results := make([]RetrieveResult, len(candidates))
 	for i, c := range candidates {
 		results[i] = RetrieveResult{
-			Source:    "llmdevkit-indexer",
+			Source:    "llmdevkit indexer",
 			FilePath:  c.FilePath,
 			LineStart: c.LineStart,
 			LineEnd:   c.LineEnd,

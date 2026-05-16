@@ -43,39 +43,52 @@ func StartIndexer(rootDir string, ignore string) error {
 	if err != nil {
 		return err
 	}
-	indexerBin := filepath.Join(filepath.Dir(exePath), "llmdevkit-indexer")
-	if _, err := os.Stat(indexerBin); os.IsNotExist(err) {
-		indexerBin, err = exec.LookPath("llmdevkit-indexer")
+	llmdevkitBin := filepath.Join(filepath.Dir(exePath), "llmdevkit")
+	if _, err := os.Stat(llmdevkitBin); os.IsNotExist(err) {
+		llmdevkitBin, err = exec.LookPath("llmdevkit")
 		if err != nil {
-			return fmt.Errorf("llmdevkit-indexer not found")
+			return fmt.Errorf("llmdevkit not found")
 		}
 	}
 
-	args := []string{rootDir}
+	args := []string{"indexer", rootDir}
 	if ignore != "" {
-		args = append([]string{fmt.Sprintf("--ignore=%s", ignore)}, args...)
+		args = []string{"indexer", fmt.Sprintf("--ignore=%s", ignore), rootDir}
 	}
 	if LlamaEmbedder != nil {
 		args = []string{
+			"indexer",
 			fmt.Sprintf("--embedder-port=%d", LlamaEmbedder.Port()),
 			rootDir,
 		}
 		if ignore != "" {
-			args = append([]string{fmt.Sprintf("--ignore=%s", ignore)}, args...)
+			args = []string{
+				"indexer",
+				fmt.Sprintf("--ignore=%s", ignore),
+				fmt.Sprintf("--embedder-port=%d", LlamaEmbedder.Port()),
+				rootDir,
+			}
 		}
 		if LlamaReranker != nil {
 			args = []string{
+				"indexer",
 				fmt.Sprintf("--embedder-port=%d", LlamaEmbedder.Port()),
 				fmt.Sprintf("--reranker-port=%d", LlamaReranker.Port()),
 				rootDir,
 			}
 			if ignore != "" {
-				args = append([]string{fmt.Sprintf("--ignore=%s", ignore)}, args...)
+				args = []string{
+					"indexer",
+					fmt.Sprintf("--ignore=%s", ignore),
+					fmt.Sprintf("--embedder-port=%d", LlamaEmbedder.Port()),
+					fmt.Sprintf("--reranker-port=%d", LlamaReranker.Port()),
+					rootDir,
+				}
 			}
 		}
 	}
 
-	cmd := exec.Command(indexerBin, args...)
+	cmd := exec.Command(llmdevkitBin, args...)
 	cmd.Stderr = os.Stderr
 
 	stdin, err := cmd.StdinPipe()
