@@ -83,8 +83,6 @@ agents:
       on_conversation_begin:
         ls :
           pathspec: .
-        relevant_code:
-          prompt: "%p"
       on_turn_begin:
         relevant_code:
           prompt: "%p"
