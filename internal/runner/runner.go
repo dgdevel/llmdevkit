@@ -346,6 +346,7 @@ func (r *Runner) callLLM(ctx context.Context, req chatRequest) (*chatResponse, e
 	url := strings.TrimRight(r.llm.APIBase, "/") + "/chat/completions"
 	dlog.Log("callLLM POST %s model=%s msg_count=%d", url, req.Model, len(req.Messages))
 	dlog.ReqRes("REQUEST", string(body))
+	debuglog.LLMLog("REQUEST", string(body))
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(string(body)))
 	if err != nil {
@@ -372,6 +373,7 @@ func (r *Runner) callLLM(ctx context.Context, req chatRequest) (*chatResponse, e
 
 	dlog.Log("callLLM response HTTP %d len=%d", resp.StatusCode, len(respBody))
 	dlog.ReqRes("RESPONSE", string(respBody))
+	debuglog.LLMLog("RESPONSE", string(respBody))
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("LLM HTTP %d: %s", resp.StatusCode, string(respBody))

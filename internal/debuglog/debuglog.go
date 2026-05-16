@@ -13,10 +13,12 @@ import (
 )
 
 var (
-	mu      sync.Mutex
-	loggers map[string]*log.Logger
-	active  bool
-	rootDir string
+	mu       sync.Mutex
+	loggers  map[string]*log.Logger
+	active   bool
+	rootDir  string
+	llmFile  *os.File
+	llmMu    sync.Mutex
 )
 
 func init() {
@@ -45,6 +47,14 @@ func Init(root string) {
 		logDir := filepath.Join(root, ".llmdevkit", "logs")
 		os.MkdirAll(logDir, 0755)
 		log.Printf("debug logging enabled, logs dir: %s", logDir)
+		// Open dedicated LLM log file.
+		llmPath := filepath.Join(logDir, "llm.log")
+		f, err := os.OpenFile(llmPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			log.Printf("debuglog: cannot open %s: %v", llmPath, err)
+		} else {
+			llmFile = f
+		}
 	}
 }
 
@@ -53,6 +63,19 @@ func Enabled() bool {
 	mu.Lock()
 	defer mu.Unlock()
 	return active
+}
+
+// LLMLog writes a raw LLM request or response payload to llm.log.
+// Each entry is prefixed with a separator containing direction and timestamp.
+// The payload itself is written untouched.
+func LLMLog(direction, payload string) {
+	llmMu.Lock()
+	defer llmMu.Unlock()
+	if llmFile == nil {
+		return
+	}
+	ts := time.Now().Format("2006-01-02T15:04:05.000")
+	fmt.Fprintf(llmFile, "======== %s %s ========\n%s\n", direction, ts, payload)
 }
 
 // For returns a namespaced logger. Each name gets its own log file.

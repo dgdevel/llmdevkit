@@ -12,6 +12,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"llmdevkit/internal/debuglog"
 )
 
 type LlamaServer struct {
@@ -59,6 +61,7 @@ func (s *LlamaServer) ChatCompletion(ctx context.Context, messages []ChatMessage
 		"model":    "default",
 		"messages": messages,
 	})
+	debuglog.LLMLog("REQUEST", string(body))
 	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/v1/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return "", err
@@ -75,6 +78,8 @@ func (s *LlamaServer) ChatCompletion(ctx context.Context, messages []ChatMessage
 	if err != nil {
 		return "", err
 	}
+
+	debuglog.LLMLog("RESPONSE", string(respBody))
 
 	var result ChatResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
