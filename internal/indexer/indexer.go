@@ -378,6 +378,7 @@ func (idx *Indexer) scanAndIndex() (int, int) {
 		fileHashes[relPath] = hash
 
 		if stored, ok := idx.manifest[relPath]; ok && stored == hash {
+			idx.loadFileSignatures(relPath, path)
 			return nil
 		}
 
@@ -399,6 +400,36 @@ func (idx *Indexer) scanAndIndex() (int, int) {
 	idx.saveManifest()
 
 	return fileCount, chunkCount
+}
+
+// loadFileSignatures extracts signatures from a file without re-embedding.
+// Used when the file hash matches the manifest (unchanged file) but signatures
+// are not in memory (e.g. after indexer restart).
+func (idx *Indexer) loadFileSignatures(relPath, absPath string) {
+	content, err := os.ReadFile(absPath)
+	if err != nil || len(content) == 0 {
+		return
+	}
+	lang := DetectLanguage(relPath)
+	if lang == "" {
+		return
+	}
+	chunks, err := ChunkFile(relPath, content, lang)
+	if err != nil || len(chunks) == 0 {
+		return
+	}
+	for _, c := range chunks {
+		if c.Signature != "" {
+			idx.signatures = append(idx.signatures, SignatureEntry{
+				FilePath:  c.FilePath,
+				LineStart: c.LineStart,
+				LineEnd:   c.LineEnd,
+				Language:  c.Language,
+				ChunkType: c.ChunkType,
+				Signature: c.Signature,
+			})
+		}
+	}
 }
 
 func (idx *Indexer) indexFile(relPath, absPath string) int {

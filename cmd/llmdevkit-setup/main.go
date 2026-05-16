@@ -101,6 +101,7 @@ func main() {
 	config["llama"]["embedder"] = embedderRepo
 	config["llama"]["reranker"] = rerankerRepo
 	config["llama"]["extractor"] = extractorRepo
+	config["llama"]["embedder_flags"] = "--threads 1 --threads-batch 1"
 	config["llama"]["extractor_flags"] = "--temp 0 --ctx-size 262144"
 	if err := cfg.Write(config, configPath); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
