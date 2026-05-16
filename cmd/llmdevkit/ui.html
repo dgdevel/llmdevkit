@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM DevKit</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+html,body{height:100%;overflow:hidden}
+.border-dashed{border-style:dashed!important}
+.sidebar{width:260px;min-width:200px}
+.msg-input{min-height:44px;max-height:200px;resize:none}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bs-border-color);border-radius:3px}
+.bubble-content p{margin:.25rem 0}
+.bubble-content ul,.bubble-content ol{margin:.25rem 0 .25rem 1.25rem}
+.bubble-content h1,.bubble-content h2,.bubble-content h3,.bubble-content h4{margin:.5rem 0 .25rem}
+.bubble-content pre{padding:.5rem;border-radius:.25rem;overflow-x:auto;margin:.375rem 0;font-size:.8125rem}
+.bubble-content code{padding:1px 4px;border-radius:.1875rem;font-size:.8125rem}
+.bubble-content pre code{background:none;padding:0}
+.bubble-content table{border-collapse:collapse;margin:.375rem 0}
+.bubble-content th,.bubble-content td{border:1px solid var(--bs-border-color);padding:.25rem .5rem;font-size:.8125rem}
+.bubble-content th{background:var(--bs-tertiary-bg)}
+.tool-args-table{border-collapse:collapse;margin:.375rem 0;width:100%}
+.tool-args-table td{padding:.125rem .5rem;font-size:.75rem;border-bottom:1px solid var(--bs-border-color)}
+.tool-args-table .arg-name{font-family:monospace;font-weight:600;white-space:nowrap;width:1%}
+.tool-args-table .arg-val{font-family:monospace;white-space:pre-wrap;word-break:break-all}
+.conv-item .conv-del{display:none}
+.conv-item:hover .conv-del{display:inline-block}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+.status-dot.running{animation:pulse-dot 1.5s ease-in-out infinite}
+</style>
+</head>
+<body>
+<div class="d-flex flex-column vh-100">
+<!-- Top bar -->
+<nav class="d-flex align-items-center gap-3 px-3 py-2 border-bottom flex-shrink-0 bg-body-secondary">
+  <span class="fw-bold text-primary small">LLM DevKit</span>
+  <span class="small text-info" id="llmName"></span>
+  <span class="small text-body-secondary flex-grow-1" id="stateInfo"></span>
+
+  <button class="btn btn-sm btn-outline-danger" id="notifBtn" onclick="toggleNotifications()" title="Notifications disabled (click to enable)">🔔</button>
+
+  <div class="form-check form-switch mb-0 d-inline-flex align-items-center gap-1 small">
+    <input class="form-check-input" type="checkbox" id="autoscrollCheck" checked style="cursor:pointer">
+    <label class="form-check-label" for="autoscrollCheck" style="cursor:pointer;font-size:.75rem">Autoscroll</label>
+  </div>
+  <button class="btn btn-sm btn-outline-danger d-none" id="cancelBtn" onclick="cancelSession()">⏹ Cancel</button>
+</nav>
+<!-- Body -->
+<div class="d-flex flex-grow-1 overflow-hidden">
+  <!-- Sidebar -->
+  <div class="sidebar d-flex flex-column border-end flex-shrink-0 bg-body-secondary">
+    <div class="p-3 border-bottom">
+      <h6 class="text-uppercase mb-2 small text-body-secondary">Agent</h6>
+      <select class="form-select form-select-sm" id="agentSelect" onchange="onAgentChange()"></select>
+    </div>
+    <div class="px-3 pt-3 pb-1 border-bottom">
+      <h6 class="text-uppercase mb-0 small text-body-secondary">Conversations</h6>
+    </div>
+    <div class="flex-grow-1 overflow-auto px-1 py-1" id="convList"></div>
+    <div class="mx-2 my-2">
+      <button class="btn btn-sm btn-outline-secondary w-100" onclick="newConversation()">+ New Conversation</button>
+    </div>
+    <div class="border-top overflow-auto flex-shrink-0 px-3 py-2" id="taskList" style="display:none;max-height:200px">
+      <div class="d-flex align-items-center mb-1">
+        <h6 class="text-uppercase mb-0 small text-body-secondary flex-grow-1">Tasks</h6>
+        <span id="tasksClearBtn" style="cursor:pointer;font-size:.7rem" class="text-body-secondary" title="Clear all tasks">✕ Clear</span>
+      </div>
+      <div id="taskItems"></div>
+    </div>
+  </div>
+  <!-- Main pane -->
+  <div class="flex-grow-1 d-flex flex-column overflow-hidden">
+    <div class="chat-messages flex-grow-1 overflow-auto p-3 d-flex flex-column gap-2" id="messages"></div>
+    <div class="px-3 py-1 flex-shrink-0" id="queueContainer" style="display:none"></div>
+    <div class="px-3 py-2 border-top flex-shrink-0">
+      <div class="d-flex gap-2 align-items-end">
+        <textarea class="form-control flex-grow-1 msg-input" id="promptInput" rows="1" placeholder="Type your prompt… (Enter to send, Shift+Enter for newline)" onkeydown="onPromptKey(event)" oninput="autoGrow(this)"></textarea>
+        <button class="btn btn-primary text-nowrap" id="sendBtn" onclick="sendPrompt()">▶ Send</button>
+        <button class="btn btn-outline-secondary text-nowrap" id="undoBtn" onclick="undoLastPrompt()">↩ Undo</button>
+        <button class="btn btn-outline-warning text-nowrap" id="trimBtn" onclick="trimConversation()">✂ Trim</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Setup modal -->
+<div class="modal fade" id="setupModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title text-primary">Start Conversation</h5>
+      </div>
+      <div class="modal-body">
+        <label class="form-label small text-body-secondary">Agent</label>
+        <select class="form-select form-select-sm mb-3" id="setupAgent"></select>
+        <label class="form-label small text-body-secondary">System Prompt Override (optional)</label>
+        <textarea class="form-control form-control-sm" id="setupSysPrompt" rows="4" placeholder="Leave empty to use agent default…"></textarea>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cancelSetup()">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="confirmSetup()">Start</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+<script type="module">
+import { S } from './js/state.js';
+import { loadAgents, loadConversations, renderConvList, selectConversation } from './js/sidebar.js';
+import { newConversation, cancelSetup, confirmSetup, onAgentChange } from './js/conversation.js';
+import { autoGrow, onPromptKey, sendPrompt, cancelSession, undoLastPrompt, trimConversation } from './js/prompt.js';
+import { connectSSE } from './js/events.js';
+import { answerAsk, answerExec, submitDeny, answerChoice, answerCustom } from './js/asks.js';
+import { initLazyExpand } from './js/bubble.js';
+import { renderQueue, removeFromQueue } from './js/queue.js';
+import { initNotifications, toggleNotifications } from './js/notifications.js';
+
+// Expose to inline onclick handlers
+window.newConversation = newConversation;
+window.cancelSetup = cancelSetup;
+window.confirmSetup = confirmSetup;
+window.onAgentChange = onAgentChange;
+window.autoGrow = autoGrow;
+window.onPromptKey = onPromptKey;
+window.sendPrompt = sendPrompt;
+window.cancelSession = cancelSession;
+window.undoLastPrompt = undoLastPrompt;
+window.trimConversation = trimConversation;
+window.answerAsk = answerAsk;
+window.answerExec = answerExec;
+window.submitDeny = submitDeny;
+window.answerChoice = answerChoice;
+window.answerCustom = answerCustom;
+window.toggleNotifications = toggleNotifications;
+
+// Queue delete button delegation
+document.getElementById('queueContainer').addEventListener('click', (e) => {
+  const btn = e.target.closest('.queue-del-btn');
+  if (btn) {
+    const idx = parseInt(btn.dataset.idx, 10);
+    removeFromQueue(idx);
+  }
+});
+
+// Init
+S.setupModalEl = new bootstrap.Modal(document.getElementById('setupModal'));
+initLazyExpand();
+await loadAgents();
+await loadConversations();
+renderConvList();
+if (S.conversations.length > 0) {
+  selectConversation(S.conversations[0].id);
+}
+connectSSE();
+initNotifications();
+</script>
+</body>
+</html>
