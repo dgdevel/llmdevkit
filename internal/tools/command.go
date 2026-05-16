@@ -197,5 +197,11 @@ func RunCommandHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 	if timedOut {
 		out = "Command timed out. Partial output.\n" + out
 	}
-	return mcp.NewToolResultText(out), nil
+
+	exitCode := cmd.ProcessState.ExitCode()
+	var header string
+	if exitCode >= 0 {
+		header = fmt.Sprintf("Exit status: %d\n", exitCode)
+	}
+	return mcp.NewToolResultText(header + out), nil
 }

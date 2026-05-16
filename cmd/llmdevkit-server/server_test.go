@@ -915,7 +915,7 @@ func TestServer_SideChannel_AskExec_Approved(t *testing.T) {
 		defer wg.Done()
 		body := map[string]any{
 			"type":    "ask_exec",
-			"cmdline": "ls -la",
+			"cmdline": "echo original",
 			"timeout": 10,
 		}
 		b, _ := json.Marshal(body)
@@ -945,14 +945,83 @@ func TestServer_SideChannel_AskExec_Approved(t *testing.T) {
 	}
 
 	// Approve with modified cmdline
-	ans := AskAnswer{Type: "ask_exec", Approved: true, Cmdline: "ls -la /tmp"}
+	ans := AskAnswer{Type: "ask_exec", Approved: true, Cmdline: "echo modified"}
 	ansBody, _ := json.Marshal(ans)
 	http.Post(ts.URL+"/api/ask/"+askID, "application/json", strings.NewReader(string(ansBody)))
 
 	wgWait(t, &wg)
 
-	if sideResp != "ls -la /tmp" {
-		t.Errorf("expected approved cmdline 'ls -la /tmp', got %q", sideResp)
+	expected := "User modified the command, running: echo modified\nmodified\n\nExit status: 0"
+	if sideResp != expected {
+		t.Errorf("expected %q, got %q", expected, sideResp)
+	}
+}
+
+func TestServer_SideChannel_AskExec_ApprovedUnmodified(t *testing.T) {
+	srv := newTestServer(t)
+	mux := handlerMux(srv)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	conv := &Conversation{
+		ID:          "conv_exec_unmod",
+		Agent:       "test",
+		Initialized: true,
+		Messages:    []BubbleMessage{},
+	}
+	srv.addConversation(conv)
+
+	var sideResp string
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		body := map[string]any{
+			"type":    "ask_exec",
+			"cmdline": "echo hello",
+			"timeout": 10,
+		}
+		b, _ := json.Marshal(body)
+		resp, err := http.Post(ts.URL+"/api/sidechannel", "application/json", strings.NewReader(string(b)))
+		if err != nil {
+			return
+		}
+		defer resp.Body.Close()
+		data, _ := io.ReadAll(resp.Body)
+		sideResp = string(data)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	srv.mu.RLock()
+	var askID string
+	for _, msg := range conv.Messages {
+		if msg.Type == "ask_exec" && msg.ID != "" {
+			askID = msg.ID
+			break
+		}
+	}
+	srv.mu.RUnlock()
+
+	if askID == "" {
+		t.Fatal("no ask_exec bubble found")
+	}
+
+	// Approve without modifying cmdline
+	ans := AskAnswer{Type: "ask_exec", Approved: true, Cmdline: "echo hello"}
+	ansBody, _ := json.Marshal(ans)
+	http.Post(ts.URL+"/api/ask/"+askID, "application/json", strings.NewReader(string(ansBody)))
+
+	wgWait(t, &wg)
+
+	if strings.Contains(sideResp, "User modified") {
+		t.Errorf("should not contain 'User modified' when cmdline unchanged, got %q", sideResp)
+	}
+	if !strings.Contains(sideResp, "hello") {
+		t.Errorf("expected command output to contain 'hello', got %q", sideResp)
+	}
+	if !strings.Contains(sideResp, "Exit status: 0") {
+		t.Errorf("expected 'Exit status: 0', got %q", sideResp)
 	}
 }
 

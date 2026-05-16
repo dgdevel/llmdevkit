@@ -1437,6 +1437,9 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 
 	s.addBubble(convID, bubble)
 
+	// Save original cmdline before user may modify it
+	originalCmdline := bubble.Cmdline
+
 	// Wait for user answer
 	ans := s.waitForAskAnswer(convID, askID, askType, payload)
 
@@ -1469,11 +1472,20 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 			cmd := exec.CommandContext(ctx, "sh", "-c", ans.Cmdline)
 			cmd.Dir = s.rootDir
 			out, err := cmd.CombinedOutput()
-			if err != nil {
-				w.Write([]byte(fmt.Sprintf("%s\n(exit %v)", string(out), err)))
-			} else {
-				w.Write(out)
+
+			var buf bytes.Buffer
+			if ans.Cmdline != originalCmdline {
+				buf.WriteString(fmt.Sprintf("User modified the command, running: %s\n", ans.Cmdline))
 			}
+			buf.Write(out)
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				buf.WriteString(fmt.Sprintf("\nExit status: %d", exitErr.ExitCode()))
+			} else if err != nil {
+				buf.WriteString(fmt.Sprintf("\nExit status: 1"))
+			} else {
+				buf.WriteString(fmt.Sprintf("\nExit status: 0"))
+			}
+			w.Write(buf.Bytes())
 		} else {
 			w.WriteHeader(200)
 			w.Write([]byte("DENIED: " + ans.DenyReason))
