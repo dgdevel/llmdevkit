@@ -1,14 +1,35 @@
 import { S } from './state.js';
-import { esc, md, briefText } from './utils.js';
+import { esc, md, briefText, formatTokenCount } from './utils.js';
 import { bubbleHTML, clearLazyContent, populateLazy } from './bubble.js';
 import { renderAskOpenEnded, renderAskExec, renderAskMultipleChoice } from './asks.js';
 
-export function renderMessages(conv) {
+let _lastRenderedConvId = null;
+
+export function renderMessages(conv, full) {
   const el = document.getElementById('messages');
+  if (!conv) { el.innerHTML = ''; clearLazyContent(); S._bubbleId = 0; _lastRenderedConvId = null; return; }
+
+  // Force full rebuild if conv changed
+  if (conv.id !== _lastRenderedConvId) full = true;
+
+  // Determine if we can do an incremental append
+  const msgs = conv.messages || [];
+  const rendered = conv._renderedMsgCount || 0;
+
+  if (!full && rendered > 0 && msgs.length >= rendered) {
+    // Incremental: append only new messages
+    for (let i = rendered; i < msgs.length; i++) {
+      el.insertAdjacentHTML('beforeend', renderBubble(msgs[i]));
+    }
+    conv._renderedMsgCount = msgs.length;
+    scrollToBottom();
+    return;
+  }
+
+  // Full rebuild
   el.innerHTML = '';
   clearLazyContent();
   S._bubbleId = 0;
-  if (!conv) return;
   if (conv.system_prompt) {
     const spBrief = briefText(conv.system_prompt);
     el.innerHTML += bubbleHTML('system', 'System Prompt', md(conv.system_prompt), true, true, spBrief);
@@ -39,9 +60,11 @@ export function renderMessages(conv) {
     const toolsHTML = conv.tools.map(t => `<span class="badge text-bg-secondary me-1">${esc(t)}</span>`).join(' ');
     el.innerHTML += bubbleHTML('tools', 'Available Tools', toolsHTML, true, true, conv.tools.join(', '));
   }
-  (conv.messages || []).forEach(m => {
+  msgs.forEach(m => {
     el.innerHTML += renderBubble(m);
   });
+  conv._renderedMsgCount = msgs.length;
+  _lastRenderedConvId = conv.id;
   scrollToBottom();
 }
 
@@ -49,6 +72,22 @@ export function scrollToBottom() {
   if (!document.getElementById('autoscrollCheck').checked) return;
   const el = document.getElementById('messages');
   el.scrollTop = el.scrollHeight;
+}
+
+// Targeted update: update token count display on the last LLM bubble
+export function updateLastLLMTokenCount(tokenCount) {
+  const el = document.getElementById('messages');
+  const bubbles = el.querySelectorAll('.bubble-llm');
+  const lastBubble = bubbles[bubbles.length - 1];
+  if (!lastBubble) return;
+  const tsEl = lastBubble.querySelector('.card-header small');
+  if (!tsEl) return;
+  const span = tsEl.querySelector('.text-info');
+  if (span) {
+    span.textContent = `• ${formatTokenCount(tokenCount)} tok`;
+  } else {
+    tsEl.insertAdjacentHTML('beforeend', ` <span class="text-info">• ${esc(formatTokenCount(tokenCount))} tok</span>`);
+  }
 }
 
 export function renderBubble(m) {

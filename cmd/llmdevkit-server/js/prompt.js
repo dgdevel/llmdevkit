@@ -15,8 +15,7 @@ export function scheduleRender(conv) {
     S._renderScheduled = false;
     const c = conv || getActiveConv();
     if (c) {
-      renderMessages(c);
-      scrollToBottom();
+      renderMessages(c, false);
     }
   });
 }

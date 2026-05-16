@@ -9,7 +9,7 @@
 # (no conversation sharing), enabling parallel or sequential task delegation.
 
 agents:
-  - name: dev
+  - name: developer
     llm: local
     tools: devkit agents ask
     system_prompt: >

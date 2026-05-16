@@ -488,17 +488,22 @@ func (s *Server) handleConversations(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Agent        string `json:"agent"`
 			SystemPrompt string `json:"system_prompt"`
+			Title        string `json:"title"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), 400)
 			return
+		}
+		title := req.Title
+		if title == "" {
+			title = time.Now().Format("2006-01-02T15:04:05")
 		}
 		conv := &Conversation{
 			ID:           fmt.Sprintf("conv_%d", time.Now().UnixNano()),
 			Agent:        req.Agent,
 			SystemPrompt: req.SystemPrompt,
 			Messages:     []BubbleMessage{},
-			Title:        time.Now().Format("2006-01-02T15:04:05"),
+			Title:        title,
 		}
 		s.dlog.Log("POST /api/conversations agent=%s conv_id=%s", req.Agent, conv.ID)
 		s.mu.Lock()

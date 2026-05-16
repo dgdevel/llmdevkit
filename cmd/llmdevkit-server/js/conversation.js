@@ -31,10 +31,13 @@ export async function confirmSetup() {
   const agent = document.getElementById('setupAgent').value;
   const sysPrompt = document.getElementById('setupSysPrompt').value;
   S.setupModalEl.hide();
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const title = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   const r = await fetch('/api/conversations', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({agent, system_prompt: sysPrompt})
+    body: JSON.stringify({agent, system_prompt: sysPrompt, title})
   });
   const conv = await r.json();
   const existingIdx = S.conversations.findIndex(c => c.id === conv.id);

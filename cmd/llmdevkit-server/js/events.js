@@ -1,7 +1,7 @@
 import { S } from './state.js';
 import { renderConvList, selectConversation } from './sidebar.js';
 import { getActiveConv } from './conversation.js';
-import { renderMessages, scrollToBottom } from './messages.js';
+import { renderMessages, scrollToBottom, updateLastLLMTokenCount } from './messages.js';
 import { updateState } from './state-ui.js';
 import { scheduleRender, updateStreamingBubble } from './prompt.js';
 import { updateTasksFromToolResponse, renderTaskList } from './tasks.js';
@@ -96,7 +96,7 @@ function handleEvent(ev) {
             break;
           }
         }
-        if (conv.id === S.activeConvId) scheduleRender(conv);
+        if (conv.id === S.activeConvId) updateLastLLMTokenCount(tokens);
       }
       break;
     case 'tool_request_update':
@@ -110,6 +110,7 @@ function handleEvent(ev) {
               if (tcId === ev.data.toolCallId) {
                 parsed.rawInput = JSON.parse(ev.data.rawInput);
                 m.content = JSON.stringify(parsed);
+                conv._renderedMsgCount = 0; // force full rebuild
                 break;
               }
             } catch(e) {}
