@@ -70,6 +70,7 @@ html,body{height:100%;overflow:hidden}
   <!-- Main pane -->
   <div class="flex-grow-1 d-flex flex-column overflow-hidden">
     <div class="chat-messages flex-grow-1 overflow-auto p-3 d-flex flex-column gap-2" id="messages"></div>
+    <div class="px-3 py-1 flex-shrink-0" id="queueContainer" style="display:none"></div>
     <div class="px-3 py-2 border-top flex-shrink-0">
       <div class="d-flex gap-2 align-items-end">
         <textarea class="form-control flex-grow-1 msg-input" id="promptInput" rows="1" placeholder="Type your prompt… (Enter to send, Shift+Enter for newline)" onkeydown="onPromptKey(event)" oninput="autoGrow(this)"></textarea>
@@ -112,6 +113,7 @@ import { autoGrow, onPromptKey, sendPrompt, cancelSession, undoLastPrompt, trimC
 import { connectSSE } from './js/events.js';
 import { answerAsk, answerExec, submitDeny, answerChoice, answerCustom } from './js/asks.js';
 import { initLazyExpand } from './js/bubble.js';
+import { renderQueue, removeFromQueue } from './js/queue.js';
 
 // Expose to inline onclick handlers
 window.newConversation = newConversation;
@@ -129,6 +131,15 @@ window.answerExec = answerExec;
 window.submitDeny = submitDeny;
 window.answerChoice = answerChoice;
 window.answerCustom = answerCustom;
+
+// Queue delete button delegation
+document.getElementById('queueContainer').addEventListener('click', (e) => {
+  const btn = e.target.closest('.queue-del-btn');
+  if (btn) {
+    const idx = parseInt(btn.dataset.idx, 10);
+    removeFromQueue(idx);
+  }
+});
 
 // Init
 S.setupModalEl = new bootstrap.Modal(document.getElementById('setupModal'));

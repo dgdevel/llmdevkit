@@ -6,6 +6,7 @@ import { updateState } from './state-ui.js';
 import { scheduleRender, updateStreamingBubble } from './prompt.js';
 import { updateTasksFromToolResponse, renderTaskList } from './tasks.js';
 import { handleAskOpenEnded, handleAskExec, handleAskMultipleChoice } from './asks.js';
+import { updateQueueFromSSE } from './queue.js';
 
 export function connectSSE() {
   const es = new EventSource('/api/events');
@@ -80,6 +81,11 @@ function handleEvent(ev) {
       }
       updateState(conv);
       renderConvList();
+      break;
+    case 'queue_update':
+      conv.queue = ev.data || [];
+      S.messageQueue = conv.queue;
+      if (conv.id === S.activeConvId) updateQueueFromSSE(conv.queue);
       break;
     case 'token_stats':
       if (ev.data && ev.data.total_tokens) {

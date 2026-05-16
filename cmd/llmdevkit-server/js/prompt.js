@@ -6,6 +6,7 @@ import { updateState } from './state-ui.js';
 import { renderMessages, scrollToBottom } from './messages.js';
 import { renderTaskList } from './tasks.js';
 import { populateLazy } from './bubble.js';
+import { enqueuePrompt } from './queue.js';
 
 export function scheduleRender(conv) {
   if (S._renderScheduled) return;
@@ -82,6 +83,12 @@ export async function sendPrompt() {
     renderMessages(conv);
     renderConvList();
     updateState(conv);
+    return;
+  }
+
+  // If conversation is running, enqueue the message instead
+  if (conv.running || S.running) {
+    await enqueuePrompt(text);
     return;
   }
 

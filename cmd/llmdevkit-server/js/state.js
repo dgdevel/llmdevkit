@@ -9,6 +9,7 @@ export const S = {
   taskEntries: [],
   toolCallIdToName: {},
   toolDefsCache: {},
+  messageQueue: [],
 
   _renderScheduled: false,
   _streamUpdateScheduled: false,

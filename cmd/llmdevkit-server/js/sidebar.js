@@ -4,6 +4,7 @@ import { renderMessages } from './messages.js';
 import { updateState } from './state-ui.js';
 import { rebuildTaskState } from './tasks.js';
 import { loadToolDefs } from './conversation.js';
+import { renderQueue } from './queue.js';
 
 export async function loadAgents() {
   const r = await fetch('/api/agents');
@@ -101,6 +102,7 @@ export async function selectConversation(id) {
     if (conv.agent) await loadToolDefs(conv.agent);
     await rebuildTaskState(conv);
     renderMessages(conv);
+    renderQueue(conv);
     updateState(conv);
   }
 }

@@ -1,4 +1,5 @@
 import { S } from './state.js';
+import { renderQueue } from './queue.js';
 
 export function updateState(conv) {
   const stateEl = document.getElementById('stateInfo');
@@ -23,7 +24,7 @@ export function updateState(conv) {
   if (isRunning) {
     stateEl.innerHTML = '<span class="text-success fw-semibold">● Running</span>';
     cancelBtn.classList.remove('d-none');
-    sendBtn.disabled = true;
+    sendBtn.disabled = false;
     undoBtn.disabled = true;
     trimBtn.disabled = true;
   } else {
@@ -33,4 +34,5 @@ export function updateState(conv) {
     undoBtn.disabled = false;
     trimBtn.disabled = false;
   }
+  renderQueue();
 }

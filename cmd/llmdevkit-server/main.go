@@ -17,6 +17,7 @@ import (
 	"reflect"
 	"os/signal"
 	"strings"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -78,6 +79,7 @@ type Conversation struct {
 	Messages     []BubbleMessage `json:"messages"`
 	Running      bool            `json:"running"`
 	FileSize     int64           `json:"file_size,omitempty"`
+	Queue        []string        `json:"queue,omitempty"`
 
 	ACPSessionID string `json:"acp_session_id,omitempty"`
 	Initialized  bool   `json:"-"`
@@ -501,6 +503,10 @@ func (s *Server) handleConversationActions(w http.ResponseWriter, r *http.Reques
 		s.handleConvUndo(w, r, convID)
 	case "trim":
 		s.handleConvTrim(w, r, convID)
+	case "enqueue":
+		s.handleConvEnqueue(w, r, convID)
+	case "queue":
+		s.handleConvQueueList(w, r, convID)
 	default:
 		http.Error(w, "unknown action", 404)
 	}
@@ -628,6 +634,14 @@ func (s *Server) handleConvPrompt(w http.ResponseWriter, r *http.Request, convID
 		http.Error(w, "session not initialized", 400)
 		return
 	}
+
+	s.mu.RLock()
+	if conv.Running {
+		s.mu.RUnlock()
+		http.Error(w, "conversation is running, use enqueue instead", 409)
+		return
+	}
+	s.mu.RUnlock()
 
 	s.mu.Lock()
 	ts := nowISO()
@@ -837,6 +851,117 @@ func (s *Server) rewriteJSONL(convID string, conv *Conversation) {
 func mustMarshal(v interface{}) json.RawMessage {
 	b, _ := json.Marshal(v)
 	return b
+}
+
+func (s *Server) handleConvEnqueue(w http.ResponseWriter, r *http.Request, convID string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var req struct {
+		Prompt string `json:"prompt"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	if req.Prompt == "" {
+		http.Error(w, "empty prompt", 400)
+		return
+	}
+
+	s.mu.Lock()
+	conv, ok := s.convs[convID]
+	if !ok {
+		s.mu.Unlock()
+		http.Error(w, "not found", 404)
+		return
+	}
+	conv.Queue = append(conv.Queue, req.Prompt)
+	queueCopy := make([]string, len(conv.Queue))
+	copy(queueCopy, conv.Queue)
+	s.mu.Unlock()
+
+	s.broadcastSSE(convID, "queue_update", queueCopy)
+	writeJSON(w, map[string]interface{}{"queue": queueCopy})
+}
+
+func (s *Server) handleConvQueueDelete(w http.ResponseWriter, r *http.Request, convID string, idx int) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+
+	s.mu.Lock()
+	conv, ok := s.convs[convID]
+	if !ok {
+		s.mu.Unlock()
+		http.Error(w, "not found", 404)
+		return
+	}
+	if idx < 0 || idx >= len(conv.Queue) {
+		s.mu.Unlock()
+		http.Error(w, "index out of range", 400)
+		return
+	}
+	conv.Queue = append(conv.Queue[:idx], conv.Queue[idx+1:]...)
+	queueCopy := make([]string, len(conv.Queue))
+	copy(queueCopy, conv.Queue)
+	s.mu.Unlock()
+
+	s.broadcastSSE(convID, "queue_update", queueCopy)
+	writeJSON(w, map[string]interface{}{"queue": queueCopy})
+}
+
+func (s *Server) handleConvQueueList(w http.ResponseWriter, r *http.Request, convID string) {
+	s.mu.RLock()
+	conv, ok := s.convs[convID]
+	s.mu.RUnlock()
+	if !ok {
+		http.Error(w, "not found", 404)
+		return
+	}
+
+	// Check if there's a "delete" sub-action: /api/conversations/{id}/queue/{idx}
+	path := r.URL.Path
+	parts := strings.Split(strings.TrimPrefix(path, "/api/conversations/"+convID+"/queue/"), "/")
+	if len(parts) > 0 && parts[0] != "" {
+		idx, err := strconv.Atoi(parts[0])
+		if err != nil {
+			http.Error(w, "invalid index", 400)
+			return
+		}
+		s.handleConvQueueDelete(w, r, convID, idx)
+		return
+	}
+
+	s.mu.RLock()
+	var queue []string
+	if conv != nil {
+		queue = make([]string, len(conv.Queue))
+		copy(queue, conv.Queue)
+	}
+	s.mu.RUnlock()
+	writeJSON(w, map[string]interface{}{"queue": queue})
+}
+
+// dequeuePrompt removes and returns the first queued prompt for a conversation.
+// Returns empty string if queue is empty.
+func (s *Server) dequeuePrompt(convID string) string {
+	s.mu.Lock()
+	conv, ok := s.convs[convID]
+	if !ok || len(conv.Queue) == 0 {
+		s.mu.Unlock()
+		return ""
+	}
+	prompt := conv.Queue[0]
+	conv.Queue = conv.Queue[1:]
+	queueCopy := make([]string, len(conv.Queue))
+	copy(queueCopy, conv.Queue)
+	s.mu.Unlock()
+
+	s.broadcastSSE(convID, "queue_update", queueCopy)
+	return prompt
 }
 
 // ── ACP subprocess management ───────────────────────────────────────────────
@@ -1198,6 +1323,26 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 	}
 
 	s.setConvRunning(convID, false)
+
+	// Dequeue next prompt if available
+	if next := s.dequeuePrompt(convID); next != "" {
+		s.mu.RLock()
+		c, ok := s.convs[convID]
+		s.mu.RUnlock()
+		if ok {
+			ts := nowISO()
+			s.mu.Lock()
+			c.Messages = append(c.Messages, BubbleMessage{Type: "user", Content: next, Timestamp: ts})
+			convCopy := *c
+			convCopy.Messages = make([]BubbleMessage, len(c.Messages))
+			copy(convCopy.Messages, c.Messages)
+			s.mu.Unlock()
+			s.appendJSONL(convID, "bubble", BubbleMessage{Type: "user", Content: next, Timestamp: ts})
+			s.setConvRunning(convID, true)
+			s.broadcastSSE("", "conversation_updated", &convCopy)
+			go s.runACPPrompt(convID, next)
+		}
+	}
 }
 
 // ── Bubble management ───────────────────────────────────────────────────────
