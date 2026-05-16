@@ -196,6 +196,8 @@ func main() {
 	rootDir, _ := os.Getwd()
 	rootDir, _ = filepath.Abs(rootDir)
 
+	tools.RootDir = rootDir
+
 	debuglog.Init(rootDir)
 	dlog := debuglog.For("server")
 	dlog.Log("server starting, rootDir=%s", rootDir)
@@ -240,6 +242,7 @@ func main() {
 	mux.HandleFunc("/api/conversations/", srv.handleConversationActions)
 	mux.HandleFunc("/api/ask/", srv.handleAskAnswer)
 	mux.HandleFunc("/api/tasks/delete", srv.handleTaskDelete)
+	mux.HandleFunc("/api/tasks/clear", srv.handleTasksClear)
 	mux.HandleFunc("/api/tasks", srv.handleTasksRead)
 	mux.HandleFunc("/api/sidechannel", srv.handleSideChannel)
 	mux.HandleFunc("/api/events", srv.handleSSE)
@@ -1860,6 +1863,17 @@ func (s *Server) handleTaskDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "tasks": filtered})
+}
+
+func (s *Server) handleTasksClear(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	tools.TasksMu.Lock()
+	defer tools.TasksMu.Unlock()
+	os.Remove(tools.TasksFilePath())
+	writeJSON(w, map[string]interface{}{"ok": true})
 }
 
 func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {

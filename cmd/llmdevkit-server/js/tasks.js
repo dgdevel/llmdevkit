@@ -34,11 +34,19 @@ export function updateTasksFromToolResponse(toolName, content) {
 export function renderTaskList() {
   const el = document.getElementById('taskItems');
   const container = document.getElementById('taskList');
+  const clearBtn = document.getElementById('tasksClearBtn');
   if (S.taskEntries.length === 0) {
     container.style.display = 'none';
     return;
   }
   container.style.display = '';
+  if (clearBtn) {
+    clearBtn.onclick = async () => {
+      await fetch('/api/tasks/clear', {method: 'POST'});
+      S.taskEntries = [];
+      renderTaskList();
+    };
+  }
   const icons = {pending: '○', in_progress: '◐', completed: '●', failed: '✕'};
   const iconCls = {pending: 'text-body-secondary', in_progress: 'text-warning', completed: 'text-success', failed: 'text-danger'};
   el.innerHTML = S.taskEntries.map((t, idx) => {
