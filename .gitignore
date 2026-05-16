@@ -1,1 +1,8 @@
 .llmdevkit/
+llmdevkit-config
+llmdevkit-indexer
+llmdevkit-setup
+llmdevkit-mcp
+llmdevkit-acp
+llmdevkit-server
+
