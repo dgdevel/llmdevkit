@@ -350,11 +350,13 @@ Listens on `http://localhost:18681` and serves a single-page chat application.
   - `ask_exec` — command approval dialog with confirm/deny
   - `ask_multiple_choice` — selectable choice list with optional free-text option
 - **Conversation persistence** — each conversation is stored as a JSONL file under `.llmdevkit/conversations/`, reloaded on restart
+- **Conversation management** — rename, undo last exchange, trim from a point onward
+- **Message queue** — enqueue prompts while an agent turn is running; queued messages are sent sequentially once the current turn completes
+- **Task management UI** — task list panel that parses `task_create`/`task_set_status`/`task_delete`/`tasks_list`/`tasks_clear` tool responses and renders status checkboxes; supports deleting tasks via the UI
 - **Token usage tracking** — displays cumulative prompt/completion token counts and LLM call count
 - **ACP orchestration** — spawns `llmdevkit-acp` as a subprocess over stdio, communicates via ACP JSON-RPC, and proxies all session updates to the browser
 - **Side channel** — HTTP endpoint (`/api/sidechannel`) that the ACP subprocess uses to forward ask-tool requests, token stats, and tool definition caches back to the server
 - **MCP tool definitions** — resolves tool schemas from configured MCP servers and the in-process devkit tools for display in the UI
-- **Conversation management** — create, list, get, delete conversations via REST API; cancel running agent turns
 - **`--enable-indexer` flag** — passed through to `llmdevkit-acp` via environment variable to enable code indexing tools
 
 ### REST API
@@ -371,6 +373,14 @@ Listens on `http://localhost:18681` and serves a single-page chat application.
 | `/api/conversations/<id>/init` | POST | Initialize ACP session and send first prompt |
 | `/api/conversations/<id>/prompt` | POST | Send a follow-up prompt |
 | `/api/conversations/<id>/cancel` | POST | Cancel a running agent turn |
+| `/api/conversations/<id>/rename` | POST | Rename a conversation |
+| `/api/conversations/<id>/undo` | POST | Remove last exchange (assistant + user message) |
+| `/api/conversations/<id>/trim` | POST | Remove all exchanges from a given index onward |
+| `/api/conversations/<id>/enqueue` | POST | Enqueue a prompt for later delivery |
+| `/api/conversations/<id>/queue` | GET | List queued prompts |
+| `/api/conversations/<id>/queue/<idx>` | POST | Delete a queued prompt by index |
 | `/api/ask/<id>` | POST | Submit an answer to a pending ask-tool request |
+| `/api/tasks` | GET | Read current task list |
+| `/api/tasks/delete` | POST | Delete a task by ID |
 | `/api/sidechannel` | POST | Internal endpoint for ACP subprocess callbacks |
 | `/api/events` | GET | SSE stream for real-time updates |
