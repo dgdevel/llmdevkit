@@ -1,4 +1,5 @@
 .llmdevkit/
+dist/
 llmdevkit-config
 llmdevkit-indexer
 llmdevkit-setup
