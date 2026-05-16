@@ -215,6 +215,9 @@ func main() {
 		mcp.WithString("parent",
 			mcp.Description("ID of parent task, optional"),
 		),
+		mcp.WithString("status",
+			mcp.Description("One of: created, in_progress, completed. Optional"),
+		),
 	), tools.TasksCreateHandler)
 
 	s.AddTool(mcp.NewTool("task_set_status",

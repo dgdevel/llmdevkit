@@ -203,9 +203,16 @@ func TasksCreateHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	parent := ""
+	status := "created"
 	if args, ok := req.Params.Arguments.(map[string]interface{}); ok {
 		if s, ok := args["parent"].(string); ok && s != "" {
 			parent = s
+		}
+		if s, ok := args["status"].(string); ok && s != "" {
+			if _, err := StatusToMarker(s); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			status = s
 		}
 	}
 	TasksMu.Lock()
@@ -223,7 +230,7 @@ func TasksCreateHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 	} else {
 		id = NextTopLevelID(tasks)
 	}
-	tasks = append(tasks, Task{ID: id, Status: "created", Description: description})
+	tasks = append(tasks, Task{ID: id, Status: status, Description: description})
 	SortTasks(tasks)
 	if err := WriteTasks(tasks); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
