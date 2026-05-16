@@ -23,7 +23,7 @@ Copy the six executable in your $PATH.
 | `llmdevkit-indexer` | Build and query the code index |
 | `llmdevkit-mcp` | MCP server — file tools, task management, command runner, code search, memory |
 | `llmdevkit-acp` | ACP server — agent harness with LLM orchestration, tool routing, and sub-agent invocation |
-| `llmdevkit-server` | Web UI server — chat interface for agents with real-time streaming, conversation persistence, and human-in-the-loop tools |
+| `llmdevkit-server` | Web UI server — chat interface for agents with real-time streaming, conversation persistence, human-in-the-loop tools, and browser notifications |
 
 Configuration is stored in `.llmdevkit/` (local, per-project) and `$XDG_CONFIG_HOME/llmdevkit/` (global), merged with local overriding global. Both directories are invisible to all MCP tools.
 
@@ -358,6 +358,7 @@ Listens on `http://localhost:18681` and serves a single-page chat application.
 - **Side channel** — HTTP endpoint (`/api/sidechannel`) that the ACP subprocess uses to forward ask-tool requests, token stats, and tool definition caches back to the server
 - **MCP tool definitions** — resolves tool schemas from configured MCP servers and the in-process devkit tools for display in the UI
 - **`--enable-indexer` flag** — passed through to `llmdevkit-acp` via environment variable to enable code indexing tools
+- **Browser notifications** — optional service worker delivers desktop notifications when an agent needs input (ask tools) or finishes a turn; bell icon in top bar toggles on/off; notifications are clickable and reopen the tab
 
 ### REST API
 
@@ -384,3 +385,4 @@ Listens on `http://localhost:18681` and serves a single-page chat application.
 | `/api/tasks/delete` | POST | Delete a task by ID |
 | `/api/sidechannel` | POST | Internal endpoint for ACP subprocess callbacks |
 | `/api/events` | GET | SSE stream for real-time updates |
+| `/api/notifications?since=<ts>` | GET | Poll notification events (ask-tool and turn completion) since a Unix timestamp; used by the service worker |

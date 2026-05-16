@@ -34,7 +34,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-//go:embed ui.html js
+//go:embed ui.html js sw.js
 var staticFS embed.FS
 
 // ── Data types ──────────────────────────────────────────────────────────────
@@ -119,6 +119,16 @@ type Server struct {
 	toolDefsCache map[string][]ToolDefInfo // agent name → cached tool defs from ACP
 
 	enableIndexer bool
+
+	notifMu    sync.Mutex
+	notifBuf   []notifEvent
+}
+
+type notifEvent struct {
+	Ts     float64 `json:"ts"`
+	Event  string  `json:"event"`
+	ConvID string  `json:"conv_id"`
+	Title  string  `json:"title,omitempty"`
 }
 
 type SSEEvent struct {
@@ -134,6 +144,47 @@ type AskAnswer struct {
 	Cmdline    string `json:"cmdline,omitempty"`
 	Timeout    int    `json:"timeout,omitempty"`
 	DenyReason string `json:"deny_reason,omitempty"`
+}
+
+// pushNotif adds a notification event to the ring buffer.
+func (s *Server) pushNotif(event, convID, title string) {
+	s.notifMu.Lock()
+	s.notifBuf = append(s.notifBuf, notifEvent{
+		Ts:     float64(time.Now().UnixMilli()) / 1000,
+		Event:  event,
+		ConvID: convID,
+		Title:  title,
+	})
+	// Keep last 100 entries
+	if len(s.notifBuf) > 100 {
+		s.notifBuf = s.notifBuf[len(s.notifBuf)-100:]
+	}
+	s.notifMu.Unlock()
+}
+
+// handleNotifications returns notification events since a given timestamp.
+func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	sinceStr := r.URL.Query().Get("since")
+	var since float64
+	if sinceStr != "" {
+		since, _ = strconv.ParseFloat(sinceStr, 64)
+	}
+	s.notifMu.Lock()
+	var result []notifEvent
+	for _, n := range s.notifBuf {
+		if n.Ts > since {
+			result = append(result, n)
+		}
+	}
+	s.notifMu.Unlock()
+	if result == nil {
+		result = []notifEvent{}
+	}
+	writeJSON(w, result)
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
@@ -192,6 +243,7 @@ func main() {
 	mux.HandleFunc("/api/tasks", srv.handleTasksRead)
 	mux.HandleFunc("/api/sidechannel", srv.handleSideChannel)
 	mux.HandleFunc("/api/events", srv.handleSSE)
+	mux.HandleFunc("/api/notifications", srv.handleNotifications)
 
 	addr := ":18681"
 
@@ -231,6 +283,18 @@ func (s *Server) serveUI(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		w.Write(data)
+		return
+	}
+	// Serve service worker
+	if path == "/sw.js" {
+		data, err := staticFS.ReadFile("sw.js")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		w.Header().Set("Service-Worker-Allowed", "/")
 		w.Write(data)
 		return
 	}
@@ -1400,6 +1464,20 @@ func (s *Server) setConvRunning(convID string, isRunning bool) {
 	}
 	s.mu.Unlock()
 	s.broadcastSSE(convID, "state", map[string]bool{"running": isRunning})
+	if !isRunning {
+		s.pushNotif("done", convID, s.convTitle(convID))
+	}
+}
+
+// convTitle returns the conversation title or a fallback.
+func (s *Server) convTitle(convID string) string {
+	s.mu.RLock()
+	conv, ok := s.convs[convID]
+	s.mu.RUnlock()
+	if ok && conv.Title != "" {
+		return conv.Title
+	}
+	return convID
 }
 
 // updateToolRequestRawInput finds the last tool_request bubble matching the
@@ -1698,6 +1776,20 @@ func (s *Server) waitForAskAnswer(convID, askID, askType string, payload interfa
 
 	data, _ := json.Marshal(payload)
 	s.broadcastSSE(convID, askType, json.RawMessage(data))
+
+	// Extract a readable title from payload
+	var title string
+	switch askType {
+	case "ask_open_ended", "ask_multiple_choice":
+		if m, ok := payload.(map[string]json.RawMessage); ok {
+			json.Unmarshal(m["question"], &title)
+		}
+	case "ask_exec":
+		if m, ok := payload.(map[string]json.RawMessage); ok {
+			json.Unmarshal(m["cmdline"], &title)
+		}
+	}
+	s.pushNotif("ask", convID, title)
 
 	return <-ch
 }

@@ -41,6 +41,8 @@ html,body{height:100%;overflow:hidden}
   <span class="small text-info" id="llmName"></span>
   <span class="small text-body-secondary flex-grow-1" id="stateInfo"></span>
 
+  <button class="btn btn-sm btn-outline-danger" id="notifBtn" onclick="toggleNotifications()" title="Notifications disabled (click to enable)">🔔</button>
+
   <div class="form-check form-switch mb-0 d-inline-flex align-items-center gap-1 small">
     <input class="form-check-input" type="checkbox" id="autoscrollCheck" checked style="cursor:pointer">
     <label class="form-check-label" for="autoscrollCheck" style="cursor:pointer;font-size:.75rem">Autoscroll</label>
@@ -114,6 +116,7 @@ import { connectSSE } from './js/events.js';
 import { answerAsk, answerExec, submitDeny, answerChoice, answerCustom } from './js/asks.js';
 import { initLazyExpand } from './js/bubble.js';
 import { renderQueue, removeFromQueue } from './js/queue.js';
+import { initNotifications, toggleNotifications } from './js/notifications.js';
 
 // Expose to inline onclick handlers
 window.newConversation = newConversation;
@@ -131,6 +134,7 @@ window.answerExec = answerExec;
 window.submitDeny = submitDeny;
 window.answerChoice = answerChoice;
 window.answerCustom = answerCustom;
+window.toggleNotifications = toggleNotifications;
 
 // Queue delete button delegation
 document.getElementById('queueContainer').addEventListener('click', (e) => {
@@ -151,6 +155,7 @@ if (S.conversations.length > 0) {
   selectConversation(S.conversations[0].id);
 }
 connectSSE();
+initNotifications();
 </script>
 </body>
 </html>
