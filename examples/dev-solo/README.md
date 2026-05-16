@@ -19,19 +19,23 @@ A single-agent setup where the developer agent can invoke itself as a sub-agent.
    llmdevkit-config set commands.test_cmdline "make test"
    ```
 
-4. Run the ACP server:
+4. Run the http server:
    ```
-   llmdevkit-acp
+   llmdevkit-server
    ```
 
-5. Connect from an ACP-compatible client.
+   Or with indexer:
+   ```
+   echo reindex | llmdevkit-indexer
+   llmdevkit-server --enable-indexer
+   ```
+
+5. Open [your browser](http://127.0.0.1:18681/).
 
 ## How it works
 
 - **`devkit`** tool source: spawns an in-process `llmdevkit-mcp` instance providing file operations, task management, command execution, search, etc.
 - **`agents`** tool source: exposes `agents_available` and `agent_invoke`. The dev agent can call `agent_invoke` with a prompt — this launches a fresh dev agent instance with its own context, enabling task delegation without polluting the main conversation.
-- Hooks are configured but empty — extend them to trigger automatic tool calls at lifecycle boundaries (e.g., auto-save context on conversation end).
+- **`ask`** tool source: enable interactivity (human in the loop)
 
-## Extending
 
-Add more agents to `agents.yml` for specialized roles (code reviewer, test writer, etc.) and they will automatically appear in `agents_available`.
