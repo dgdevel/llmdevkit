@@ -1,13 +1,20 @@
-import { esc, formatTime } from './utils.js';
+import { esc, formatTime, formatTokenCount } from './utils.js';
 import { S } from './state.js';
 
 // Lazy content store: bubble ID → HTML string
 const lazyContent = new Map();
 
-export function bubbleHTML(cls, label, content, raw, collapsed, brief, timestamp) {
+export function bubbleHTML(cls, label, content, raw, collapsed, brief, timestamp, tokenCount) {
   const id = 'bc-' + (S._bubbleId++);
   const briefHtml = (collapsed && brief) ? `<span class="brief-badge badge text-bg-secondary fw-normal text-truncate ms-2" style="max-width:250px">${brief}</span>` : '';
-  const tsHtml = timestamp ? `<small class="text-body-secondary ms-auto">${formatTime(timestamp)}</small>` : '';
+  let tsHtml = '';
+  if (timestamp) {
+    tsHtml = `<small class="text-body-secondary ms-auto">${formatTime(timestamp)}`;
+    if (tokenCount && tokenCount > 0) tsHtml += ` <span class="text-info">• ${esc(formatTokenCount(tokenCount))} tok</span>`;
+    tsHtml += '</small>';
+  } else if (tokenCount && tokenCount > 0) {
+    tsHtml = `<small class="text-body-secondary ms-auto"><span class="text-info">${esc(formatTokenCount(tokenCount))} tok</span></small>`;
+  }
 
   let cardCls = 'card bubble-' + cls;
   let align = 'align-self-start';

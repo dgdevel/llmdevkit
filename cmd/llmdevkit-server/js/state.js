@@ -9,7 +9,7 @@ export const S = {
   taskEntries: [],
   toolCallIdToName: {},
   toolDefsCache: {},
-  tokenStats: {prompt_tokens:0, completion_tokens:0, total_tokens:0, llm_calls:0},
+
   _renderScheduled: false,
   _streamUpdateScheduled: false,
   setupModalEl: null,

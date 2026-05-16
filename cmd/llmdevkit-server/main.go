@@ -52,6 +52,7 @@ type BubbleMessage struct {
 	Answered       bool     `json:"answered,omitempty"`
 	Approved       bool     `json:"approved,omitempty"`
 	Answer         string   `json:"answer,omitempty"`
+	TokenCount     int      `json:"token_count,omitempty"`
 }
 
 type TokenStats struct {
@@ -75,7 +76,6 @@ type Conversation struct {
 	ToolDefs     []ToolDefInfo   `json:"tool_defs,omitempty"`
 	Title        string          `json:"title,omitempty"`
 	Messages     []BubbleMessage `json:"messages"`
-	TokenStats   TokenStats      `json:"token_stats,omitempty"`
 	Running      bool            `json:"running"`
 	FileSize     int64           `json:"file_size,omitempty"`
 
@@ -749,7 +749,6 @@ func (s *Server) handleConvUndo(w http.ResponseWriter, r *http.Request, convID s
 
 	// Truncate messages
 	conv.Messages = conv.Messages[:lastUserIdx]
-	conv.TokenStats = TokenStats{}
 	convCopy := *conv
 	convCopy.Messages = make([]BubbleMessage, len(conv.Messages))
 	copy(convCopy.Messages, conv.Messages)
@@ -796,7 +795,6 @@ func (s *Server) handleConvTrim(w http.ResponseWriter, r *http.Request, convID s
 	}
 
 	conv.Messages = filtered
-	conv.TokenStats = TokenStats{}
 	convCopy := *conv
 	convCopy.Messages = make([]BubbleMessage, len(conv.Messages))
 	copy(convCopy.Messages, conv.Messages)
@@ -1342,11 +1340,12 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 
 		s.mu.Lock()
 		if conv, ok := s.convs[convID]; ok {
-			conv.TokenStats = TokenStats{
-				PromptTokens:     conv.TokenStats.PromptTokens + stats.PromptTokens,
-				CompletionTokens: conv.TokenStats.CompletionTokens + stats.CompletionTokens,
-				TotalTokens:      conv.TokenStats.TotalTokens + stats.TotalTokens,
-				LLMCalls:         conv.TokenStats.LLMCalls + stats.LLMCalls,
+			// Set token count on the last llm bubble
+			for i := len(conv.Messages) - 1; i >= 0; i-- {
+				if conv.Messages[i].Type == "llm" {
+					conv.Messages[i].TokenCount = conv.Messages[i].TokenCount + stats.TotalTokens
+					break
+				}
 			}
 		}
 		s.mu.Unlock()
@@ -1756,7 +1755,13 @@ func (s *Server) loadConversations() error {
 			case "token_stats":
 				var ts TokenStats
 				json.Unmarshal(line.Payload, &ts)
-				conv.TokenStats = ts
+				// Set token count on the last llm bubble
+				for i := len(conv.Messages) - 1; i >= 0; i-- {
+					if conv.Messages[i].Type == "llm" {
+						conv.Messages[i].TokenCount = conv.Messages[i].TokenCount + ts.TotalTokens
+						break
+					}
+				}
 			}
 		}
 		f.Close()

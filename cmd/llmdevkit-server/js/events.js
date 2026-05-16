@@ -2,7 +2,7 @@ import { S } from './state.js';
 import { renderConvList, selectConversation } from './sidebar.js';
 import { getActiveConv } from './conversation.js';
 import { renderMessages, scrollToBottom } from './messages.js';
-import { updateState, updateTokenPill } from './state-ui.js';
+import { updateState } from './state-ui.js';
 import { scheduleRender, updateStreamingBubble } from './prompt.js';
 import { updateTasksFromToolResponse, renderTaskList } from './tasks.js';
 import { handleAskOpenEnded, handleAskExec, handleAskMultipleChoice } from './asks.js';
@@ -45,7 +45,6 @@ function handleEvent(ev) {
         agent: remote.agent,
         system_prompt: remote.system_prompt,
         tools: remote.tools,
-        token_stats: remote.token_stats,
         acp_session_id: remote.acp_session_id
       });
     }
@@ -82,14 +81,15 @@ function handleEvent(ev) {
       renderConvList();
       break;
     case 'token_stats':
-      if (ev.data) {
-        if (!conv.token_stats) conv.token_stats = {prompt_tokens:0,completion_tokens:0,total_tokens:0,llm_calls:0};
-        conv.token_stats.prompt_tokens += ev.data.prompt_tokens || 0;
-        conv.token_stats.completion_tokens += ev.data.completion_tokens || 0;
-        conv.token_stats.total_tokens += ev.data.total_tokens || 0;
-        conv.token_stats.llm_calls += ev.data.llm_calls || 0;
-        S.tokenStats = conv.token_stats;
-        updateTokenPill();
+      if (ev.data && ev.data.total_tokens) {
+        const tokens = ev.data.total_tokens || 0;
+        for (let i = conv.messages.length - 1; i >= 0; i--) {
+          if (conv.messages[i].type === 'llm') {
+            conv.messages[i].token_count = (conv.messages[i].token_count || 0) + tokens;
+            break;
+          }
+        }
+        if (conv.id === S.activeConvId) scheduleRender(conv);
       }
       break;
     case 'tool_request_update':
