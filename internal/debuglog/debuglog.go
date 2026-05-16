@@ -49,7 +49,7 @@ func Init(root string) {
 		log.Printf("debug logging enabled, logs dir: %s", logDir)
 		// Open dedicated LLM log file.
 		llmPath := filepath.Join(logDir, "llm.log")
-		f, err := os.OpenFile(llmPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		f, err := os.OpenFile(llmPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			log.Printf("debuglog: cannot open %s: %v", llmPath, err)
 		} else {
