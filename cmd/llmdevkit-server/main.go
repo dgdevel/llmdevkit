@@ -15,8 +15,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -100,7 +102,7 @@ type Server struct {
 
 	acpConn      *acp.ClientSideConnection
 	acpCmd       *exec.Cmd
-	acpMu        sync.Mutex
+	acpMu        sync.RWMutex
 	acpConnected bool
 
 	askMu    sync.Mutex
@@ -187,8 +189,21 @@ func main() {
 	mux.HandleFunc("/api/events", srv.handleSSE)
 
 	addr := ":18681"
+
+	httpServer := &http.Server{Addr: addr, Handler: mux}
+
+	// Graceful shutdown on SIGINT/SIGTERM.
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		log.Printf("shutting down...")
+		httpServer.Close()
+		debuglog.Close()
+	}()
+
 	log.Printf("llmdevkit-server listening on %s", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
 }
@@ -647,12 +662,13 @@ func (s *Server) handleConvCancel(w http.ResponseWriter, r *http.Request, convID
 		http.Error(w, "not found", 404)
 		return
 	}
-	if conv.ACPSessionID != "" {
-		s.acpMu.Lock()
-		s.acpConn.Cancel(r.Context(), &acp.CancelNotification{
+	if conv.ACPSessionID != "" && s.acpConn != nil {
+		s.acpMu.RLock()
+		conn := s.acpConn
+		s.acpMu.RUnlock()
+		conn.Cancel(r.Context(), &acp.CancelNotification{
 			SessionID: acp.SessionID(conv.ACPSessionID),
 		})
-		s.acpMu.Unlock()
 	}
 	s.setConvRunning(convID, false)
 	w.WriteHeader(204)
@@ -719,11 +735,14 @@ func (s *Server) handleConvUndo(w http.ResponseWriter, r *http.Request, convID s
 
 	// Cancel ACP session if active
 	if conv.ACPSessionID != "" {
-		s.acpMu.Lock()
-		s.acpConn.Cancel(context.Background(), &acp.CancelNotification{
-			SessionID: acp.SessionID(conv.ACPSessionID),
-		})
-		s.acpMu.Unlock()
+		s.acpMu.RLock()
+		conn := s.acpConn
+		s.acpMu.RUnlock()
+		if conn != nil {
+			conn.Cancel(context.Background(), &acp.CancelNotification{
+				SessionID: acp.SessionID(conv.ACPSessionID),
+			})
+		}
 		conv.ACPSessionID = ""
 		conv.Initialized = false
 	}
@@ -1133,9 +1152,10 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 	}
 
 	s.dlog.Log("runACPPrompt conv=%s sending Prompt RPC...", convID)
-	s.acpMu.Lock()
-	resp, err := s.acpConn.Prompt(ctx, promptReq)
-	s.acpMu.Unlock()
+	s.acpMu.RLock()
+	conn := s.acpConn
+	s.acpMu.RUnlock()
+	resp, err := conn.Prompt(ctx, promptReq)
 
 	if err != nil {
 		errMsg := err.Error()

@@ -76,6 +76,31 @@ func LLMLog(direction, payload string) {
 	}
 	ts := time.Now().Format("2006-01-02T15:04:05.000")
 	fmt.Fprintf(llmFile, "======== %s %s ========\n%s\n", direction, ts, payload)
+	llmFile.Sync()
+}
+
+// Close flushes and closes all log files. Call on graceful shutdown.
+func Close() {
+	llmMu.Lock()
+	if llmFile != nil {
+		llmFile.Sync()
+		llmFile.Close()
+		llmFile = nil
+	}
+	llmMu.Unlock()
+
+	mu.Lock()
+	for _, l := range loggers {
+		if w, ok := l.Writer().(interface{ Sync() error }); ok {
+			w.Sync()
+		}
+		if w, ok := l.Writer().(io.Closer); ok {
+			w.Close()
+		}
+	}
+	loggers = make(map[string]*log.Logger)
+	active = false
+	mu.Unlock()
 }
 
 // For returns a namespaced logger. Each name gets its own log file.
