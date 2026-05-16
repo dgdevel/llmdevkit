@@ -15,7 +15,4 @@ test:
 	go vet ./...
 	go test ./... || go test -v ./...
 
-run: compile
-	./llmdevkit-mcp --stdio
-
 .PHONY: compile clean test run
