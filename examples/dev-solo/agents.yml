@@ -1,12 +1,4 @@
 # Agent definitions for a solo developer agent with self-calling capability.
-#
-# The "dev" agent has access to:
-#   - devkit: in-process llmdevkit-mcp (file tools, tasks, commands, grep, etc.)
-#   - agents: sub-agent tools (agents_available, agent_invoke)
-#
-# Because "agents" is listed in tools, the dev agent can call itself as a
-# sub-agent via agent_invoke. Each sub-agent invocation gets a fresh context
-# (no conversation sharing), enabling parallel or sequential task delegation.
 
 agents:
   - name: developer
@@ -45,9 +37,9 @@ agents:
 
       ## Workflow Intent `Implementation`
 
-      1. Need library/dependency? Follow research workflow (use agent), `ask_exec` to install.
+      1. Need library/dependency? Follow research workflow, `ask_exec` to install.
 
-      2. Gather context on project reading files
+      2. Gather context reading files
 
       3. Prepare code edit plan (list of `edit` and `file_create`)
 
