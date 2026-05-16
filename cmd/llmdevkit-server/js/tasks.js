@@ -45,6 +45,7 @@ export function renderTaskList() {
     const icon = icons[t.status] || '○';
     return `<div class="task-item ${t.status} d-flex align-items-baseline gap-1 small text-body-secondary" style="padding:2px 0">
       <span class="task-icon flex-shrink-0 ${iconCls[t.status] || ''}" style="width:14px;text-align:center">${icon}</span>
+      <span class="task-id flex-shrink-0 text-body-secondary" style="font-size:.7rem;opacity:.5">#${esc(t.id)}</span>
       <span class="task-text flex-grow-1 overflow-hidden text-truncate" title="${esc(t.content)}">${esc(t.content)}</span>
       <span class="task-del" style="cursor:pointer;display:none;font-size:.75rem" data-idx="${idx}">✕</span>
     </div>`;

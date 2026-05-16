@@ -20,10 +20,10 @@ func RmHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResul
 		return mcp.NewToolResultError("access denied"), nil
 	}
 	if _, err := os.Stat(abs); os.IsNotExist(err) {
-		return mcp.NewToolResultText("ok"), nil
+		return mcp.NewToolResultText("done"), nil
 	}
 	if err := os.RemoveAll(abs); err != nil {
 		return mcp.NewToolResultError(MaskPath(err.Error())), nil
 	}
-	return mcp.NewToolResultText("ok"), nil
+	return mcp.NewToolResultText("done"), nil
 }

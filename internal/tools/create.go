@@ -33,5 +33,5 @@ func CreateHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 	if err := os.WriteFile(abs, []byte(content), 0644); err != nil {
 		return mcp.NewToolResultError(MaskPath(err.Error())), nil
 	}
-	return mcp.NewToolResultText("ok"), nil
+	return mcp.NewToolResultText("done"), nil
 }

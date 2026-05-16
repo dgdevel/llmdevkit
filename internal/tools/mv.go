@@ -36,5 +36,5 @@ func MvHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResul
 	if err := os.Rename(srcAbs, dstAbs); err != nil {
 		return mcp.NewToolResultError(MaskPath(err.Error())), nil
 	}
-	return mcp.NewToolResultText("ok"), nil
+	return mcp.NewToolResultText("done"), nil
 }
