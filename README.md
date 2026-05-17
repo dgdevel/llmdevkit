@@ -2,6 +2,8 @@
 
 A toolkit for building and running AI-powered developer agents. Provides an MCP server with Unix-inspired file tools, a code indexer, and an ACP (Agent Client Protocol) server that orchestrates LLMs with tool-calling capabilities and a web UI to use the agents directly. While extensible as a general toolkit, its core use case is a lean coding agent (see [examples/dev-solo](https://github.com/dgdevel/llmdevkit/tree/main/examples/dev-solo)) optimized for minimal token usage.
 
+![A screenshot](https://private-user-images.githubusercontent.com/27080383/593720769-bf4410f3-64a3-4647-ad29-91028642cd10.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NzkwMzM2NzQsIm5iZiI6MTc3OTAzMzM3NCwicGF0aCI6Ii8yNzA4MDM4My81OTM3MjA3NjktYmY0NDEwZjMtNjRhMy00NjQ3LWFkMjktOTEwMjg2NDJjZDEwLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNjA1MTclMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjYwNTE3VDE1NTYxNFomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTQ2NDgyYzQ2NWRiYmZmMDFhMjQ5MzEwNDYyNDRiNzE1OWM2OTA1NWYxZmRiNjQxZjQxMTFmZWNjYjUxYzM3YmEmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0JnJlc3BvbnNlLWNvbnRlbnQtdHlwZT1pbWFnZSUyRnBuZyJ9.O2KttAboTnR1hgqiOardMcGQPSgRi_keJNAeWmVByGg)
+
 The project is a merge of my previous two projects [nixdevkit](/dgdevel/nixdevkit) and [lite-dev-agent](/dgdevel/lite-dev-agent).
 
 ## Quickstart
