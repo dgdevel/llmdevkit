@@ -52,7 +52,7 @@ function handleEvent(ev) {
     }
     renderConvList();
     if (S.activeConvId === ev.data?.id) {
-      scheduleRender(getActiveConv());
+      renderMessages(getActiveConv());
     }
     return;
   }
