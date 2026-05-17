@@ -179,6 +179,7 @@ All paths are virtual — `/` maps to the root directory. Path traversal is bloc
 | | | `modified_window:string *` | Text to be inserted |
 | `rm` | | `path:string *` | File path |
 | `stat` | Infos on files and directories | `path:string *` | |
+| `tree` | Directory tree of the project (like `tree -d`) | | |
 | `tasks_list` | List of tasks ([ ] created, [_] in progress, [X] completed) | | |
 | `task_create` | Create a new task | `description:string *` | Task description |
 | | | `parent:string` | ID of parent task, optional |
