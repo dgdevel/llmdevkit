@@ -793,7 +793,7 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 		if s.rootDir != "" {
 			agentsMD, err := os.ReadFile(filepath.Join(s.rootDir, "AGENTS.md"))
 			if err == nil && len(agentsMD) > 0 {
-				sysPrompt += "\n\n" + string(agentsMD)
+				sysPrompt += "\n\n# AGENTS.md - Project Specific Instructions\n\n" + string(agentsMD)
 			}
 		}
 		conv.SystemPrompt = sysPrompt

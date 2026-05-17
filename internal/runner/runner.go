@@ -232,7 +232,7 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 	if r.rootDir != "" {
 		agentsMD, err := os.ReadFile(filepath.Join(r.rootDir, "AGENTS.md"))
 		if err == nil && len(agentsMD) > 0 {
-			systemMsg.Content += "\n\n" + string(agentsMD)
+			systemMsg.Content += "\n\n# AGENTS.md - Project Specific Instructions\n\n" + string(agentsMD)
 		}
 	}
 	fullMessages := append([]ChatMessage{systemMsg}, messages...)
