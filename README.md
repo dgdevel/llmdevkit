@@ -4,6 +4,9 @@ A toolkit for building and running AI-powered developer agents. Provides an MCP 
 
 [A screenshot for v1.2.0 here](https://github.com/dgdevel/llmdevkit/releases/tag/v1.2.0)
 
+[Feature list here](https://github.com/dgdevel/llmdevkit#llmdevkit-server)
+
+
 The project is a merge of my previous two projects [nixdevkit](/dgdevel/nixdevkit) and [lite-dev-agent](/dgdevel/lite-dev-agent).
 
 ## Quickstart
