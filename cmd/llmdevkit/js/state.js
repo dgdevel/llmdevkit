@@ -1,6 +1,7 @@
 // Shared mutable state - single object, mutated in-place
 export const S = {
   agents: [],
+  llms: [],
   conversations: [],
   activeConvId: null,
   running: false,

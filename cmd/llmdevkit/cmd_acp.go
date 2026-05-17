@@ -192,10 +192,16 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 		return &acp.PromptResponse{StopReason: acp.StopReasonRefusal}, nil
 	}
 
-	// Look up LLM config
-	llmDef, ok := a.llmCfg.Lookup(agentCfg.LLM)
+	// Resolve LLM: use meta override if provided, else agent default
+	llmName := agentCfg.LLM
+	if params.Meta != nil {
+		if v, ok := params.Meta["llm"].(string); ok && v != "" {
+			llmName = v
+		}
+	}
+	llmDef, ok := a.llmCfg.Lookup(llmName)
 	if !ok {
-		stream.SendText(ctx, fmt.Sprintf("Error: LLM %q not found in llms.yml\n", agentCfg.LLM))
+		stream.SendText(ctx, fmt.Sprintf("Error: LLM %q not found in llms.yml\n", llmName))
 		return &acp.PromptResponse{StopReason: acp.StopReasonRefusal}, nil
 	}
 

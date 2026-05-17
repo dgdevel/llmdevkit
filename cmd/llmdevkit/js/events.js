@@ -44,6 +44,7 @@ function handleEvent(ev) {
       Object.assign(local, {
         title: remote.title,
         agent: remote.agent,
+        llm: remote.llm,
         system_prompt: remote.system_prompt,
         tools: remote.tools,
         acp_session_id: remote.acp_session_id,
@@ -54,8 +55,9 @@ function handleEvent(ev) {
     if (S.activeConvId === ev.data?.id) {
       renderMessages(getActiveConv());
     }
+    updateState(getActiveConv());
     return;
-  }
+    }
 
   const conv = S.conversations.find(c => c.id === ev.conversation_id);
   if (!conv) return;

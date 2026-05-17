@@ -6,6 +6,25 @@ import { rebuildTaskState } from './tasks.js';
 import { loadToolDefs } from './conversation.js';
 import { renderQueue } from './queue.js';
 
+export function updateLLMSelect(conv) {
+  const sel = document.getElementById('llmSelect');
+  sel.innerHTML = '';
+  S.llms.forEach(l => {
+    sel.innerHTML += `<option value="${l.name}"${conv?.llm === l.name ? ' selected' : ''}>${l.display_name}</option>`;
+  });
+  sel.value = conv?.llm || S.llms[0]?.name || '';
+}
+
+export function getDefaultLLMForAgent(agentName) {
+  const ag = S.agents.find(a => a.name === agentName);
+  return ag?.llm || '';
+}
+
+export function resolveLLMName(llmInternalName) {
+  const l = S.llms.find(x => x.name === llmInternalName);
+  return l?.display_name || l?.name || llmInternalName || '';
+}
+
 export async function loadAgents() {
   const r = await fetch('/api/agents');
   S.agents = await r.json();
@@ -19,6 +38,11 @@ export async function loadAgents() {
   });
 }
 
+export async function loadLLMs() {
+  const r = await fetch('/api/llms');
+  S.llms = await r.json();
+}
+
 export async function loadConversations() {
   const r = await fetch('/api/conversations');
   S.conversations = await r.json();
@@ -27,7 +51,7 @@ export async function loadConversations() {
 export function renderConvList() {
   const el = document.getElementById('convList');
   el.innerHTML = '';
-  S.conversations.forEach(c => {
+  S.conversations.slice().reverse().forEach(c => {
     const active = c.id === S.activeConvId;
     const label = c.title || c.id.slice(0,8);
     const statusCls = c.running ? 'running' : 'idle';
@@ -99,6 +123,7 @@ export async function selectConversation(id) {
   const conv = S.conversations.find(c => c.id === id);
   if (conv) {
     document.getElementById('agentSelect').value = conv.agent || S.agents[0]?.name || '';
+    updateLLMSelect(conv);
     if (conv.agent) await loadToolDefs(conv.agent);
     await rebuildTaskState(conv);
     renderMessages(conv);

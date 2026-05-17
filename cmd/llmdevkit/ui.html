@@ -29,6 +29,7 @@ html,body{height:100%;overflow:hidden}
 .tool-args-table .arg-val{font-family:monospace;white-space:pre-wrap;word-break:break-all}
 .conv-item .conv-del{display:none}
 .conv-item:hover .conv-del{display:inline-block}
+.conv-item.active{background-color:var(--bs-primary-bg-subtle)!important;border-color:var(--bs-primary-border-subtle)!important;font-weight:600}
 @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
 .status-dot.running{animation:pulse-dot 1.5s ease-in-out infinite}
 </style>
@@ -38,7 +39,7 @@ html,body{height:100%;overflow:hidden}
 <!-- Top bar -->
 <nav class="d-flex align-items-center gap-3 px-3 py-2 border-bottom flex-shrink-0 bg-body-secondary">
   <span class="fw-bold text-primary small">LLM DevKit</span>
-  <span class="small text-info" id="llmName"></span>
+  <select class="form-select form-select-sm py-0" id="llmSelect" style="width:auto;max-width:200px" onchange="onLLMChange()" disabled></select>
   <span class="small text-body-secondary flex-grow-1" id="stateInfo"></span>
 
   <button class="btn btn-sm btn-outline-danger" id="notifBtn" onclick="toggleNotifications()" title="Notifications disabled (click to enable)">🔔</button>
@@ -106,7 +107,7 @@ html,body{height:100%;overflow:hidden}
       </div>
       <div class="modal-body">
         <label class="form-label small text-body-secondary">Agent</label>
-        <select class="form-select form-select-sm mb-3" id="setupAgent"></select>
+        <select class="form-select form-select-sm mb-3" id="setupAgent" onchange="onSetupAgentChange()"></select>
         <label class="form-label small text-body-secondary">System Prompt Override (optional)</label>
         <textarea class="form-control form-control-sm" id="setupSysPrompt" rows="4" placeholder="Leave empty to use agent default…"></textarea>
       </div>
@@ -152,8 +153,8 @@ html,body{height:100%;overflow:hidden}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
 <script type="module">
 import { S } from './js/state.js';
-import { loadAgents, loadConversations, renderConvList, selectConversation } from './js/sidebar.js';
-import { newConversation, cancelSetup, confirmSetup, onAgentChange } from './js/conversation.js';
+import { loadAgents, loadLLMs, loadConversations, renderConvList, selectConversation } from './js/sidebar.js';
+import { newConversation, cancelSetup, confirmSetup, onAgentChange, onLLMChange, onSetupAgentChange } from './js/conversation.js';
 import { autoGrow, onPromptKey, sendPrompt, sendPromptWithTools, cancelSession, undoLastPrompt, trimConversation } from './js/prompt.js';
 import { connectSSE } from './js/events.js';
 import { answerAsk, answerExec, submitDeny, answerChoice, answerCustom } from './js/asks.js';
@@ -167,6 +168,8 @@ window.newConversation = newConversation;
 window.cancelSetup = cancelSetup;
 window.confirmSetup = confirmSetup;
 window.onAgentChange = onAgentChange;
+window.onLLMChange = onLLMChange;
+window.onSetupAgentChange = onSetupAgentChange;
 window.autoGrow = autoGrow;
 window.onPromptKey = onPromptKey;
 window.sendPrompt = sendPrompt;
@@ -195,6 +198,7 @@ S.setupModalEl = new bootstrap.Modal(document.getElementById('setupModal'));
 initLazyExpand();
 initToolEnrichModal();
 await loadAgents();
+await loadLLMs();
 await loadConversations();
 renderConvList();
 if (S.conversations.length > 0) {

@@ -27,6 +27,7 @@ Creates or updates conversation metadata. Written on conversation creation and w
 |-----------------|------------|-----------|----------------------------------------------------------|
 | `id`            | string     | yes       | Unique conversation ID                                   |
 | `agent`         | string     | yes       | Agent name (e.g. `"code"`)                               |
+| `llm`           | string     | no        | LLM name from llms.yml (defaults to agent's configured LLM) |
 | `system_prompt` | string     | no        | System prompt for the agent                              |
 | `tools`         | string[]   | no        | List of tool names available to the agent                |
 | `tool_defs`     | object[]   | no        | Array of `ToolDefInfo` objects (tool definitions)        |
@@ -166,6 +167,18 @@ Legacy record type consumed only during file loading. Never written by current c
 
 ---
 
+### 9. `llm_change`
+
+Records a mid-conversation LLM change. The new LLM is used for subsequent prompts.
+
+**Payload:** plain object
+
+| Field  | Type   | Mandatory | Description                          |
+|--------|--------|-----------|--------------------------------------|
+| `llm`  | string | yes       | LLM name from llms.yml               |
+
+---
+
 ## File Lifecycle
 
 1. **Creation**: `conversation_created` written with initial metadata.
@@ -176,7 +189,7 @@ Legacy record type consumed only during file loading. Never written by current c
 
 ## Loading Rules
 
-- `conversation_created`: merges metadata fields (last value wins).
+- `conversation_created`: merges metadata fields (last value wins). Includes `llm` field.
 - `init`: sets agent, session, system prompt, tools.
 - `bubble`: appended to messages array.
 - `bubble_merge`: content appended to last message of same type.
@@ -184,3 +197,4 @@ Legacy record type consumed only during file loading. Never written by current c
 - `prompt_response`: ignored (informational).
 - `token_stats`: stores `total_tokens`, applied to next `llm` bubble on load.
 - `tool_request_rawinput`: ignored during load.
+- `llm_change`: updates conversation's LLM (last value wins).

@@ -77,6 +77,7 @@ type ToolDefInfo struct {
 type Conversation struct {
 	ID           string          `json:"id"`
 	Agent        string          `json:"agent"`
+	LLM          string          `json:"llm,omitempty"`
 	SystemPrompt string          `json:"system_prompt,omitempty"`
 	Tools        []string        `json:"tools,omitempty"`
 	ToolDefs     []ToolDefInfo   `json:"tool_defs,omitempty"`
@@ -244,6 +245,7 @@ func runServer() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", srv.serveUI)
 	mux.HandleFunc("/api/agents", srv.handleAgents)
+	mux.HandleFunc("/api/llms", srv.handleLLMs)
 	mux.HandleFunc("/api/tooldefs", srv.handleToolDefs)
 	mux.HandleFunc("/api/conversations", srv.handleConversations)
 	mux.HandleFunc("/api/conversations/", srv.handleConversationActions)
@@ -350,9 +352,34 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, list)
-}
-
-// ── API: Tool Definitions ───────────────────────────────────────────────────
+	}
+	
+	// ── API: LLMs ───────────────────────────────────────────────────────────────
+	
+	func (s *Server) handleLLMs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var list []llmInfo
+	if s.llmCfg != nil {
+		for _, l := range s.llmCfg.LLMs {
+			displayName := l.Model
+			if displayName == "" {
+				displayName = l.Name
+			}
+			list = append(list, llmInfo{Name: l.Name, DisplayName: displayName})
+		}
+	}
+	writeJSON(w, list)
+	}
+	
+	type llmInfo struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	}
+	
+	// ── API: Tool Definitions ───────────────────────────────────────────────────
 
 func (s *Server) handleToolDefs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -658,6 +685,12 @@ func (s *Server) handleConversations(w http.ResponseWriter, r *http.Request) {
 			Messages:     []BubbleMessage{},
 			Title:        title,
 		}
+		// Set default LLM from agent config
+		if s.agentCfg != nil {
+			if ac, ok := s.agentCfg.Lookup(req.Agent); ok && ac.LLM != "" {
+				conv.LLM = ac.LLM
+			}
+		}
 		s.dlog.Log("POST /api/conversations agent=%s conv_id=%s", req.Agent, conv.ID)
 		s.mu.Lock()
 		s.convs[conv.ID] = conv
@@ -729,6 +762,8 @@ func (s *Server) handleConversationActions(w http.ResponseWriter, r *http.Reques
 		s.handleConvEnqueue(w, r, convID)
 	case "queue":
 		s.handleConvQueueList(w, r, convID)
+	case "llm_change":
+		s.handleConvLLMChange(w, r, convID)
 	default:
 		http.Error(w, "unknown action", 404)
 	}
@@ -1003,9 +1038,36 @@ func (s *Server) handleConvRename(w http.ResponseWriter, r *http.Request, convID
 	s.appendJSONL(convID, "conversation_created", conv)
 	s.broadcastSSE("", "conversation_updated", conv)
 	writeJSON(w, map[string]string{"title": conv.Title})
-}
-
-func (s *Server) handleConvUndo(w http.ResponseWriter, r *http.Request, convID string) {
+	}
+	
+	func (s *Server) handleConvLLMChange(w http.ResponseWriter, r *http.Request, convID string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var req struct {
+		LLM string `json:"llm"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	s.mu.Lock()
+	conv, ok := s.convs[convID]
+	if ok && req.LLM != "" {
+		conv.LLM = req.LLM
+	}
+	s.mu.Unlock()
+	if !ok {
+		http.Error(w, "not found", 404)
+		return
+	}
+	s.appendJSONL(convID, "llm_change", map[string]string{"llm": conv.LLM})
+	s.broadcastSSE("", "conversation_updated", conv)
+	writeJSON(w, map[string]string{"llm": conv.LLM})
+	}
+	
+	func (s *Server) handleConvUndo(w http.ResponseWriter, r *http.Request, convID string) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", 405)
 		return
@@ -1596,12 +1658,18 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 		SessionID: acp.SessionID(conv.ACPSessionID),
 		Prompt:    []acp.ContentBlock{contentBlock},
 	}
+	meta := map[string]any{}
+	if conv.LLM != "" {
+		meta["llm"] = conv.LLM
+	}
 	if isContinuation {
-		meta := map[string]any{"continuation": true}
+		meta["continuation"] = true
 		if len(historyBlocks) > 0 {
 			historyJSON, _ := json.Marshal(historyBlocks)
 			meta["history"] = json.RawMessage(historyJSON)
 		}
+	}
+	if len(meta) > 0 {
 		promptReq.Meta = meta
 	}
 
@@ -2257,20 +2325,23 @@ func (s *Server) loadConversations() error {
 			}
 			switch line.Type {
 			case "conversation_created":
-				var c Conversation
-				json.Unmarshal(line.Payload, &c)
-				if c.ID != "" {
-					conv.ID = c.ID
-				}
-				if c.Agent != "" {
-					conv.Agent = c.Agent
-				}
-				if c.SystemPrompt != "" {
-					conv.SystemPrompt = c.SystemPrompt
-				}
-				if c.Title != "" {
-					conv.Title = c.Title
-				}
+					var c Conversation
+					json.Unmarshal(line.Payload, &c)
+					if c.ID != "" {
+						conv.ID = c.ID
+					}
+					if c.Agent != "" {
+						conv.Agent = c.Agent
+					}
+					if c.LLM != "" {
+						conv.LLM = c.LLM
+					}
+					if c.SystemPrompt != "" {
+						conv.SystemPrompt = c.SystemPrompt
+					}
+					if c.Title != "" {
+						conv.Title = c.Title
+					}
 
 			case "init":
 				var data struct {
@@ -2319,9 +2390,18 @@ func (s *Server) loadConversations() error {
 				}
 
 			case "prompt_response":
-				// informational only
-
-			case "token_stats":
+					// informational only
+			
+				case "llm_change":
+					var data struct {
+						LLM string `json:"llm"`
+					}
+					json.Unmarshal(line.Payload, &data)
+					if data.LLM != "" {
+						conv.LLM = data.LLM
+					}
+			
+				case "token_stats":
 				var ts TokenStats
 				json.Unmarshal(line.Payload, &ts)
 				pendingTC = ts.TotalTokens

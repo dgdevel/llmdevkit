@@ -346,6 +346,7 @@ Listens on `http://localhost:18681` and serves a single-page chat application.
 
 - **Web chat UI** — embedded single-page app with dark theme, conversation sidebar, markdown rendering, and auto-scroll
 - **Agent selection** — pick any agent defined in `agents.yml`; system prompt and tool set are loaded from config
+- **LLM selection** — pick any LLM to use with any agent
 - **Real-time streaming** — LLM text and thinking chunks are streamed live via Server-Sent Events (SSE)
 - **Tool call visualization** — shows tool requests and responses as styled message bubbles
 - **Human-in-the-loop tools** — interactive UI for three tool types proxied from the ACP subprocess:

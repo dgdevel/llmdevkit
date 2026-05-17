@@ -1,5 +1,6 @@
 import { S } from './state.js';
 import { renderQueue } from './queue.js';
+import { updateLLMSelect } from './sidebar.js';
 
 export function updateState(conv) {
   const stateEl = document.getElementById('stateInfo');
@@ -7,20 +8,20 @@ export function updateState(conv) {
   const sendBtn = document.getElementById('sendBtn');
   const undoBtn = document.getElementById('undoBtn');
   const trimBtn = document.getElementById('trimBtn');
-  const llmEl = document.getElementById('llmName');
+  const llmSel = document.getElementById('llmSelect');
   if (!conv) {
     stateEl.innerHTML = '';
     cancelBtn.classList.add('d-none');
     sendBtn.disabled = true;
     undoBtn.disabled = true;
     trimBtn.disabled = true;
-    llmEl.textContent = '';
+    llmSel.disabled = true;
+    llmSel.innerHTML = '';
     return;
   }
-  const agentName = conv.agent || '';
-  const ag = S.agents.find(a => a.name === agentName);
-  llmEl.textContent = ag?.llm || agentName;
+  updateLLMSelect(conv);
   const isRunning = conv.running || false;
+  llmSel.disabled = isRunning;
   if (isRunning) {
     stateEl.innerHTML = '<span class="text-success fw-semibold">● Running</span>';
     cancelBtn.classList.remove('d-none');
