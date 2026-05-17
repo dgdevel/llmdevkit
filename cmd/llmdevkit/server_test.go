@@ -954,9 +954,9 @@ func TestServer_SideChannel_AskExec_Approved(t *testing.T) {
 
 	wgWait(t, &wg)
 
-	expected := "User modified the command, running: echo modified\nmodified\n\nExit status: 0"
-	if sideResp != expected {
-		t.Errorf("expected %q, got %q", expected, sideResp)
+	expected := "User modified the command, running: echo modified\nmodified\n\nExit status: 0\nDuration: "
+	if !strings.HasPrefix(sideResp, expected) {
+		t.Errorf("expected prefix %q, got %q", expected, sideResp)
 	}
 }
 

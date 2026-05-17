@@ -170,6 +170,7 @@ func RunCommandHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 	cmd.Stdout = &output
 	cmd.Stderr = &output
 
+	start := time.Now()
 	if err := cmd.Start(); err != nil {
 		return mcp.NewToolResultError(MaskPath(fmt.Sprintf("failed to start command: %v", err))), nil
 	}
@@ -201,7 +202,7 @@ func RunCommandHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 	exitCode := cmd.ProcessState.ExitCode()
 	var header string
 	if exitCode >= 0 {
-		header = fmt.Sprintf("Exit status: %d\n", exitCode)
+		header = fmt.Sprintf("Exit status: %d\nDuration: %.3fs\n", exitCode, time.Since(start).Seconds())
 	}
 	return mcp.NewToolResultText(header + out), nil
 }

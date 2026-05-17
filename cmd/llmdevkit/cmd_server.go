@@ -1740,7 +1740,9 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 			defer cancel()
 			cmd := exec.CommandContext(ctx, "sh", "-c", ans.Cmdline)
 			cmd.Dir = s.rootDir
+			start := time.Now()
 			out, err := cmd.CombinedOutput()
+			duration := time.Since(start)
 
 			var buf bytes.Buffer
 			if ans.Cmdline != originalCmdline {
@@ -1754,6 +1756,7 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 			} else {
 				buf.WriteString(fmt.Sprintf("\nExit status: 0"))
 			}
+			buf.WriteString(fmt.Sprintf("\nDuration: %.3fs", duration.Seconds()))
 			w.Write(buf.Bytes())
 		} else {
 			w.WriteHeader(200)
