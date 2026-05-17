@@ -115,6 +115,7 @@ The index storage (vector database) is always local to each project at `[root]/.
 | `llama.embedder` | HuggingFace repo ID for the embedding model |
 | `llama.embedder_flags` | Extra flags for the embedder llama-server instance (e.g. `--ctx-size 4096`) |
 | `llama.reranker` | HuggingFace repo ID for the reranking model (not required when `llama.reranker_enabled` is `false`) |
+| `llama.reranker_flags` | Extra flags for the reranker llama-server instance (e.g. `--ctx-size 4096`) |
 | `llama.search_count` | Number of documents retrieved from the vector database (default: `50`) |
 | `llama.result_count` | Number of final results returned after reranking (default: `10`) |
 | `llama.reranker_enabled` | Set to `false`, `0`, `no`, `disabled`, or `off` to skip the reranker entirely (default: `true`) |

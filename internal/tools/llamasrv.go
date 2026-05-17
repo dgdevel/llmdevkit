@@ -55,7 +55,7 @@ func StartLlamaServers(rootDir string, enableMemory bool) error {
 		if rerankerRepo == "" {
 			rerankerRepo = defaultRerankerModel
 		}
-		rerankerFlags := []string{"--reranking", "--hf-file", defaultRerankerFile}
+		rerankerFlags := append(strings.Fields(llamaCfg["reranker_flags"]), "--reranking", "--hf-file", defaultRerankerFile)
 		t = time.Now()
 		fmt.Fprintf(os.Stderr, "[INFO] Starting reranker server (%s)...\n", rerankerRepo)
 		rerankerSrv, err := indexer.StartServer(ctx, llamaPath, rerankerRepo, rerankerFlags...)

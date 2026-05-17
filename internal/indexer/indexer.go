@@ -168,7 +168,8 @@ func (idx *Indexer) Start() error {
 			rerankerRepo := llamaCfg["reranker"]
 			t = time.Now()
 			fmt.Fprintf(os.Stderr, "[INFO] Starting reranker server...\n")
-			idx.reranker, err = StartServer(idx.ctx, llamaPath, rerankerRepo, "--reranking")
+			rerankerFlags := strings.Fields(llamaCfg["reranker_flags"])
+			idx.reranker, err = StartServer(idx.ctx, llamaPath, rerankerRepo, append(rerankerFlags, "--reranking")...)
 			if err != nil {
 				return fmt.Errorf("starting reranker: %w", err)
 			}
