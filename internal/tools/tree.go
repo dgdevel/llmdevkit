@@ -13,6 +13,14 @@ func TreeHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRes
 	type dirNode struct {
 		name     string
 		children []*dirNode
+		isDir    bool
+	}
+
+	var withFiles bool
+	if args, ok := req.Params.Arguments.(map[string]interface{}); ok {
+		if wf, ok := args["with_files"].(bool); ok {
+			withFiles = wf
+		}
 	}
 
 	var buildTree func(path string) *dirNode
@@ -23,16 +31,18 @@ func TreeHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRes
 		}
 		node := &dirNode{name: filepath.Base(path)}
 		for _, e := range entries {
-			if !e.IsDir() {
+			entryPath := filepath.Join(path, e.Name())
+			if IsIgnored(entryPath) || IsConfigPath(entryPath) {
 				continue
 			}
-			childPath := filepath.Join(path, e.Name())
-			if IsIgnored(childPath) || IsConfigPath(childPath) {
-				continue
-			}
-			child := buildTree(childPath)
-			if child != nil {
-				node.children = append(node.children, child)
+			if e.IsDir() {
+				child := buildTree(entryPath)
+				if child != nil {
+					child.isDir = true
+					node.children = append(node.children, child)
+				}
+			} else if withFiles {
+				node.children = append(node.children, &dirNode{name: e.Name(), isDir: false})
 			}
 		}
 		return node
@@ -40,21 +50,25 @@ func TreeHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRes
 
 	root := buildTree(RootDir)
 	if root == nil {
-		return mcp.NewToolResultText(RootDir), nil
+		return mcp.NewToolResultText("/"), nil
 	}
 
 	var buf strings.Builder
-	buf.WriteString(RootDir)
+	buf.WriteString("/")
 	buf.WriteByte('\n')
 
 	var render func(children []*dirNode, prefix string)
 	render = func(children []*dirNode, prefix string) {
 		for i, child := range children {
 			isLast := i == len(children)-1
+			suffix := ""
+			if child.isDir {
+				suffix = "/"
+			}
 			if isLast {
-				buf.WriteString(prefix + "└── " + child.name + "\n")
+				buf.WriteString(prefix + "└── " + child.name + suffix + "\n")
 			} else {
-				buf.WriteString(prefix + "├── " + child.name + "\n")
+				buf.WriteString(prefix + "├── " + child.name + suffix + "\n")
 			}
 			nextPrefix := prefix + "│   "
 			if isLast {

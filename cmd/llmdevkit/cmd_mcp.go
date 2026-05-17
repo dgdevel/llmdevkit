@@ -126,8 +126,11 @@ func runMCP() {
 	), tools.LsHandler)
 
 	s.AddTool(mcp.NewTool("tree",
-		mcp.WithDescription("Project directories"),
-	), tools.TreeHandler)
+			mcp.WithDescription("Project directories"),
+			mcp.WithBoolean("with_files",
+				mcp.Description("Include files (default=false)"),
+			),
+		), tools.TreeHandler)
 
 	s.AddTool(mcp.NewTool("file_read",
 		mcp.WithDescription("Read file"),
