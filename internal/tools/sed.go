@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	sedMu           sync.Mutex
+	sedMu            sync.Mutex
 	lastSedSignature string
 )
 
@@ -106,27 +106,26 @@ func SedHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResu
 		return mcp.NewToolResultText(""), nil
 	}
 
-	// Over 30 occurrences: refuse
+	// Over 30 occurrences: ask for confirmation before applying
 	if totalLines > 30 {
-		sedMu.Lock()
-		lastSedSignature = ""
-		sedMu.Unlock()
-		return mcp.NewToolResultError(fmt.Sprintf("too many occurrences (%d across %d files), refusing", totalLines, len(deltas))), nil
+		if confirm {
+			// proceed to apply below
+		} else {
+			sedMu.Lock()
+			lastSedSignature = sig
+			sedMu.Unlock()
+			if len(deltas) > 10 {
+				return mcp.NewToolResultText(fmt.Sprintf("this will edit %d occurrences across %d files. to proceed invoke again.", totalLines, len(deltas))), nil
+			}
+			names := make([]string, len(deltas))
+			for i, d := range deltas {
+				names[i] = d.relPath
+			}
+			return mcp.NewToolResultText(fmt.Sprintf("this will edit %d occurrences across %d files: %s. to proceed invoke again.", totalLines, len(deltas), strings.Join(names, ", "))), nil
+		}
 	}
 
-	// Not a confirmation: return dry-run message
-	if !confirm {
-		if len(deltas) > 10 {
-			return mcp.NewToolResultText(fmt.Sprintf("this will edit %d occurrences across %d files. to proceed invoke again.", totalLines, len(deltas))), nil
-		}
-		names := make([]string, len(deltas))
-		for i, d := range deltas {
-			names[i] = d.relPath
-		}
-		return mcp.NewToolResultText(fmt.Sprintf("this will edit %d lines across the following files: %s. to proceed invoke again.", totalLines, strings.Join(names, ", "))), nil
-	}
-
-	// Confirmation: apply changes
+	// ≤ 30 occurrences: execute immediately, no confirmation needed
 	appliedFiles := 0
 	appliedLines := 0
 	var out []string
