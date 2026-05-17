@@ -1,13 +1,16 @@
 # llmdevkit
 
-A toolkit for building and running AI-powered developer agents. Provides an MCP server with Unix-inspired file tools, a code indexer, and an ACP (Agent Client Protocol) server that orchestrates LLMs with tool-calling capabilities and a web UI to use the agents directly. While extensible as a general toolkit, its core use case is a lean coding agent (see [examples/dev-solo](https://github.com/dgdevel/llmdevkit/tree/main/examples/dev-solo)) optimized for minimal token usage. Run and tested on Linux it should work on any \*nix; maybe a windows effort will be done in the future.
+A single executable toolkit for building and running LLM-powered agents.  
+Provides an MCP server with Unix-inspired file tools, a code indexer (optional), and an ACP server that orchestrates LLMs with tool-calling capabilities and a web UI to use the agents directly.  
+While extensible as a general toolkit, its core use case is a lean coding agent (see [examples/dev-solo](https://github.com/dgdevel/llmdevkit/tree/main/examples/dev-solo)) optimized for minimal token usage.  
+Run and tested on Linux it should work on any \*nix.
 
-[A screenshot for v1.2.0 here](https://github.com/dgdevel/llmdevkit/releases/tag/v1.2.0)
+<a href="/dgdevel/llmdevkit/releases/tag/v1.2.0" target="_blank">A screenshot for v1.2.0 here</a>
 
 [Feature list here](https://github.com/dgdevel/llmdevkit#llmdevkit-server)
 
 
-The project is a merge of my previous two projects [nixdevkit](/dgdevel/nixdevkit) and [lite-dev-agent](/dgdevel/lite-dev-agent).
+The project is a merge of my previous two projects [nixdevkit (archived)](https://github.com/dgdevel/nixdevkit) and [lite-dev-agent (archived)](https://github.com/dgdevel/lite-dev-agent).
 
 ## Quickstart
 
