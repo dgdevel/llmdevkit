@@ -31,6 +31,6 @@ clean:
 test:
 	bun run eslint --no-config-lookup cmd/llmdevkit/
 	go vet ./...
-	go test ./... || go test -v ./...
+	go test ./... || (go test -v ./... 2>&1 | grep --line-buffered -E "FAIL|--- FAIL"; exit 1)
 
 .PHONY: compile dist tag release clean test
