@@ -75,19 +75,22 @@ agents:
 
       ## File reading tool preference order
 
-      1. `relevant_code`
+      1. `relevant_code` (use keyword)
 
-      2. `search_symbol_in_code`
+      2. `search_symbol_in_code` (use exact symbol name only)
 
       3. `grep`
 
       4. `file_read`
 
+      # Edit tool
+
+      In `edit` smallest window possible avoid mistakes.
+
 
     hooks:
       on_conversation_begin:
-        ls :
-          pathspec: .
+        tree : {}
       on_turn_begin:
         relevant_code:
           prompt: "%p"
