@@ -1,6 +1,6 @@
 # llmdevkit
 
-A toolkit for building and running AI-powered developer agents. Provides an MCP server with Unix-inspired file tools, a code indexer, and an ACP (Agent Client Protocol) server that orchestrates LLMs with tool-calling capabilities and a web UI to use the agents directly.
+A toolkit for building and running AI-powered developer agents. Provides an MCP server with Unix-inspired file tools, a code indexer, and an ACP (Agent Client Protocol) server that orchestrates LLMs with tool-calling capabilities and a web UI to use the agents directly. While extensible as a general toolkit, its core use case is a lean coding agent (see [examples/dev-solo](https://github.com/dgdevel/llmdevkit/tree/main/examples/dev-solo)) optimized for minimal token usage.
 
 The project is a merge of my previous two projects [nixdevkit](/dgdevel/nixdevkit) and [lite-dev-agent](/dgdevel/lite-dev-agent).
 
