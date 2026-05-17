@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"llmdevkit/internal/cfg"
 	"llmdevkit/internal/mcps"
 	"llmdevkit/internal/tools"
 
@@ -44,6 +45,24 @@ func runMCP() {
 		os.Exit(1)
 	}
 
+	args := flag.Args()
+	if len(args) > 0 {
+		tools.RootDir = args[0]
+	} else {
+		tools.RootDir, _ = os.Getwd()
+	}
+	tools.RootDir, _ = filepath.Abs(tools.RootDir)
+
+	// load ignore patterns from config [mcp] section; CLI flag overrides
+	if ignore == "" {
+		config := cfg.MergedRead(tools.RootDir)
+		if mcpCfg, ok := config["mcp"]; ok {
+			if v := mcpCfg["ignore"]; v != "" {
+				ignore = v
+			}
+		}
+	}
+
 	if ignore != "" {
 		tools.IgnoreGlobs = tools.SplitCSV(ignore)
 		for _, g := range tools.IgnoreGlobs {
@@ -53,14 +72,6 @@ func runMCP() {
 			}
 		}
 	}
-
-	args := flag.Args()
-	if len(args) > 0 {
-		tools.RootDir = args[0]
-	} else {
-		tools.RootDir, _ = os.Getwd()
-	}
-	tools.RootDir, _ = filepath.Abs(tools.RootDir)
 
 	proxiedTools := map[string]bool{}
 
