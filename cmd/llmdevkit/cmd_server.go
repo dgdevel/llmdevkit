@@ -1570,14 +1570,39 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 	
 	// Mark continuation if we reconnected and conversation has prior messages
 	isContinuation := justConnected && len(conv.Messages) > 1
-
+	
+	// On continuation, reconstruct chat history from bubbles so the fresh
+	// agent process receives the full conversation context.
+	type chatMsg struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}
+	var historyBlocks []chatMsg
+	if isContinuation {
+		for _, b := range conv.Messages {
+			switch b.Type {
+			case "user":
+				historyBlocks = append(historyBlocks, chatMsg{Role: "user", Content: b.Content})
+			case "llm":
+				historyBlocks = append(historyBlocks, chatMsg{Role: "assistant", Content: b.Content})
+			case "tool_response":
+				historyBlocks = append(historyBlocks, chatMsg{Role: "tool", Content: b.Content})
+			}
+		}
+	}
+	
 	contentBlock := acp.NewContentBlockText(promptText)
 	promptReq := &acp.PromptRequest{
 		SessionID: acp.SessionID(conv.ACPSessionID),
 		Prompt:    []acp.ContentBlock{contentBlock},
 	}
 	if isContinuation {
-		promptReq.Meta = map[string]any{"continuation": true}
+		meta := map[string]any{"continuation": true}
+		if len(historyBlocks) > 0 {
+			historyJSON, _ := json.Marshal(historyBlocks)
+			meta["history"] = json.RawMessage(historyJSON)
+		}
+		promptReq.Meta = meta
 	}
 
 	s.dlog.Log("runACPPrompt conv=%s sending Prompt RPC...", convID)

@@ -219,19 +219,6 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 		}
 	}()
 
-	// Build messages: prepend conversation history from session
-	var messages []runner.ChatMessage
-	if sd, ok := a.store.Get(params.SessionID); ok && len(sd.Messages) > 0 {
-		messages = make([]runner.ChatMessage, len(sd.Messages), len(sd.Messages)+1)
-		copy(messages, sd.Messages)
-	}
-	messages = append(messages, runner.ChatMessage{Role: "user", Content: promptText})
-
-	// Map LLM tool-call IDs → ACP ToolCallIDs so start/complete/fail
-	// use the same ID for each tool call.
-	var tcIDMu sync.Mutex
-	tcIDMap := make(map[string]acp.ToolCallID)
-
 	// Detect continuation: server signals via _meta that this is a resumed conversation
 	isContinuation := false
 	if params.Meta != nil {
@@ -239,7 +226,32 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 			isContinuation = true
 		}
 	}
-
+	
+	// Build messages: prepend conversation history from session
+	var messages []runner.ChatMessage
+	if sd, ok := a.store.Get(params.SessionID); ok && len(sd.Messages) > 0 {
+		messages = make([]runner.ChatMessage, len(sd.Messages), len(sd.Messages)+1)
+		copy(messages, sd.Messages)
+	}
+	// On continuation after server restart, session store is empty;
+	// restore history from the meta field injected by the server.
+	if len(messages) == 0 && isContinuation {
+		if raw, ok := params.Meta["history"]; ok {
+			var restored []runner.ChatMessage
+			if b, err := json.Marshal(raw); err == nil {
+				if err := json.Unmarshal(b, &restored); err == nil {
+					messages = restored
+				}
+			}
+		}
+	}
+	messages = append(messages, runner.ChatMessage{Role: "user", Content: promptText})
+	
+	// Map LLM tool-call IDs → ACP ToolCallIDs so start/complete/fail
+	// use the same ID for each tool call.
+	var tcIDMu sync.Mutex
+	tcIDMap := make(map[string]acp.ToolCallID)
+	
 	runnerOpts := []runner.Option{
 		runner.WithRootDir(a.rootDir),
 		runner.WithTextCallback(func(text string) {
