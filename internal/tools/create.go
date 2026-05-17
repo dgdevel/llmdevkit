@@ -17,6 +17,7 @@ func CreateHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	overwrite := req.GetBool("overwrite_existing", false)
 	abs, err := Resolve(p)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -24,8 +25,10 @@ func CreateHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 	if IsConfigPath(abs) || IsIgnored(abs) {
 		return mcp.NewToolResultError("access denied"), nil
 	}
-	if _, err := os.Stat(abs); err == nil {
-		return mcp.NewToolResultError("file already exists"), nil
+	if !overwrite {
+		if _, err := os.Stat(abs); err == nil {
+			return mcp.NewToolResultError("file already exists"), nil
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
 		return mcp.NewToolResultError(MaskPath(err.Error())), nil

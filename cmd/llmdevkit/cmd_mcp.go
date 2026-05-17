@@ -147,6 +147,8 @@ func runMCP() {
 		mcp.WithString("content",
 			mcp.Required(),
 		),
+		mcp.WithBoolean("overwrite_existing",
+		),
 	), tools.CreateHandler)
 
 	s.AddTool(mcp.NewTool("mv",

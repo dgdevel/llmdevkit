@@ -55,6 +55,32 @@ func TestCreateExisting(t *testing.T) {
 	}
 }
 
+func TestCreateOverwrite(t *testing.T) {
+	root := setupTestRoot(t)
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "file_create",
+			Arguments: map[string]interface{}{
+				"path":               "/file1.txt",
+				"content":            "new content",
+				"overwrite_existing": true,
+			},
+		},
+	}
+	result, err := CreateHandler(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("expected no error with overwrite_existing, got: %s", textOf(t, result))
+	}
+	data, _ := os.ReadFile(filepath.Join(root, "file1.txt"))
+	if string(data) != "new content" {
+		t.Errorf("overwrite: got %q, want %q", string(data), "new content")
+	}
+}
+
 func TestCreateEscape(t *testing.T) {
 	setupTestRoot(t)
 

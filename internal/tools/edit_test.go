@@ -368,3 +368,62 @@ func TestEditNestedFile(t *testing.T) {
 		t.Errorf("edit nested: got %q", string(data))
 	}
 }
+
+
+func TestEditWhitespaceTolerantTabsToSpaces(t *testing.T) {
+	root := setupTestRoot(t)
+	os.WriteFile(filepath.Join(root, "tabbed.go"), []byte("func foo() {\n\tbar()\n\tbaz()\n}\n"), 0644)
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "edit",
+			Arguments: map[string]interface{}{
+				"path":              "/tabbed.go",
+				"start_line_number": 2,
+				"original_window": "    bar()",
+				"modified_window": "    qux()",
+			},
+		},
+	}
+	result, err := EditHandler(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if textOf(t, result) != "done" {
+		t.Errorf("expected done, got %q", textOf(t, result))
+	}
+	data, _ := os.ReadFile(filepath.Join(root, "tabbed.go"))
+	expected := "func foo() {\n\tqux()\n\tbaz()\n}\n"
+	if string(data) != expected {
+		t.Errorf("whitespace tolerant tabs: got %q", string(data))
+	}
+}
+
+func TestEditWhitespaceTolerantSpacesToTabs(t *testing.T) {
+	root := setupTestRoot(t)
+	os.WriteFile(filepath.Join(root, "tabbed.go"), []byte("func foo() {\n\tbar()\n}\n"), 0644)
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "edit",
+			Arguments: map[string]interface{}{
+				"path":              "/tabbed.go",
+				"start_line_number": 1,
+				"original_window": "    func foo() {\n        bar()",
+				"modified_window": "    func foo() {\n        qux()",
+			},
+		},
+	}
+	result, err := EditHandler(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if textOf(t, result) != "done" {
+		t.Errorf("expected done, got %q", textOf(t, result))
+	}
+	data, _ := os.ReadFile(filepath.Join(root, "tabbed.go"))
+	expected := "func foo() {\n\tqux()\n}\n"
+	if string(data) != expected {
+		t.Errorf("spaces-to-tabs: got %q", string(data))
+	}
+}
