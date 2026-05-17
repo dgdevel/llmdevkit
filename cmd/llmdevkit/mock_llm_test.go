@@ -659,6 +659,7 @@ type TestHarness struct {
 	AgentConn  *acp.AgentSideConnection
 	ClientConn *acp.ClientSideConnection
 	pipe       *testPipe
+	cancel     context.CancelFunc
 }
 
 // NewTestHarness creates a fully wired test harness.
@@ -674,6 +675,8 @@ func NewTestHarness(t *testing.T) *TestHarness {
 	// Wire agent's client to the agent connection so SessionStream works.
 	agent.client = agentConn.Client()
 
+	_, cancel := context.WithCancel(context.Background())
+
 	return &TestHarness{
 		Mock:       mock,
 		Client:     rc,
@@ -681,6 +684,7 @@ func NewTestHarness(t *testing.T) *TestHarness {
 		AgentConn:  agentConn,
 		ClientConn: clientConn,
 		pipe:       pipe,
+		cancel:     cancel,
 	}
 }
 
@@ -693,6 +697,9 @@ func (h *TestHarness) Start(ctx context.Context) {
 
 // Close shuts down everything.
 func (h *TestHarness) Close() {
+	if h.cancel != nil {
+		h.cancel()
+	}
 	h.pipe.Close()
 	h.Mock.Close()
 }

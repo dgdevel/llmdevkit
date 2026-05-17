@@ -373,8 +373,10 @@ func TestE2E_NewSession(t *testing.T) {
 	clientConn := acp.NewClientSideConnection(rc, pipe.agentWriter, pipe.agentToClient)
 	agent.client = agentConn.Client()
 
-	go func() { _ = agentConn.Start(ctx) }()
-	go func() { _ = clientConn.Start(ctx) }()
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+	go func() { _ = agentConn.Start(ctx2) }()
+	go func() { _ = clientConn.Start(ctx2) }()
 	time.Sleep(80 * time.Millisecond)
 
 	resp, err := clientConn.NewSession(ctx, &acp.NewSessionRequest{
@@ -959,7 +961,8 @@ func TestE2E_SessionStoreIntegration(t *testing.T) {
 	clientConn := acp.NewClientSideConnection(rc, pipe.agentWriter, pipe.agentToClient)
 	agent.client = agentConn.Client()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() { _ = agentConn.Start(ctx) }()
 	go func() { _ = clientConn.Start(ctx) }()
 	time.Sleep(80 * time.Millisecond)
@@ -1027,7 +1030,8 @@ func TestE2E_Middleware(t *testing.T) {
 	clientConn := acp.NewClientSideConnection(rc, pipe.agentWriter, pipe.agentToClient)
 	agent.client = agentConn.Client()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() { _ = agentConn.Start(ctx) }()
 	go func() { _ = clientConn.Start(ctx) }()
 	time.Sleep(80 * time.Millisecond)

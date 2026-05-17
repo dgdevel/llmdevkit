@@ -304,6 +304,17 @@ func (s *Server) serveUI(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
+// Close kills the ACP subprocess if running.
+func (s *Server) Close() {
+	s.acpMu.Lock()
+	cmd := s.acpCmd
+	s.acpMu.Unlock()
+	if cmd != nil && cmd.Process != nil {
+		cmd.Process.Kill()
+		cmd.Wait()
+	}
+}
+
 // ── API: Agents ─────────────────────────────────────────────────────────────
 
 type agentInfo struct {
@@ -634,7 +645,10 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 	conv.Initialized = true
 	s.dlog.Log("INIT session created: acp_session=%s agent=%s", conv.ACPSessionID, conv.Agent)
 
-	agentCfg, _ := s.agentCfg.Lookup(conv.Agent)
+	var agentCfg *agents.AgentConfig
+	if s.agentCfg != nil {
+		agentCfg, _ = s.agentCfg.Lookup(conv.Agent)
+	}
 	if agentCfg != nil {
 		sysPrompt := conv.SystemPrompt
 		if sysPrompt == "" {
