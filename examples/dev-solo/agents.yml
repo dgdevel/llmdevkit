@@ -91,9 +91,7 @@ agents:
     hooks:
       on_conversation_begin:
         tree : {}
-      on_turn_begin:
-        relevant_code:
-          prompt: "%p"
+      on_turn_begin: {}
       on_turn_end: {}
       on_conversation_end: {}
 
