@@ -208,6 +208,16 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 
 	promptCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	
+	// Store cancel func so Cancel() can abort this prompt
+	if sd, ok := a.store.Get(params.SessionID); ok {
+		sd.CancelFn = cancel
+	}
+	defer func() {
+		if sd, ok := a.store.Get(params.SessionID); ok {
+			sd.CancelFn = nil
+		}
+	}()
 
 	// Build messages: prepend conversation history from session
 	var messages []runner.ChatMessage
@@ -303,7 +313,11 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 }
 
 func (a *llmdevkitAgent) Cancel(ctx context.Context, params *acp.CancelNotification) error {
-	// Context cancellation is handled by the prompt context
+	if sd, ok := a.store.Get(params.SessionID); ok {
+		if sd.CancelFn != nil {
+			sd.CancelFn()
+		}
+	}
 	return nil
 }
 

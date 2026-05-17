@@ -90,7 +90,9 @@ type Conversation struct {
 	Initialized  bool   `json:"-"`
 
 	PendingTokenCount int `json:"-"` // set by token_stats side channel, applied when prompt finishes
-}
+	
+	PromptCancel context.CancelFunc `json:"-"` // cancel the running prompt context
+	}
 
 type jsonlLine struct {
 	Type    string          `json:"type"`
@@ -965,6 +967,13 @@ func (s *Server) handleConvCancel(w http.ResponseWriter, r *http.Request, convID
 			SessionID: acp.SessionID(conv.ACPSessionID),
 		})
 	}
+	// Cancel the server-side prompt context so runACPPrompt returns promptly
+	s.mu.Lock()
+	if conv.PromptCancel != nil {
+		conv.PromptCancel()
+		conv.PromptCancel = nil
+	}
+	s.mu.Unlock()
 	s.setConvRunning(convID, false)
 	w.WriteHeader(204)
 }
@@ -1548,7 +1557,17 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
-
+	
+	// Store cancel so handleConvCancel can abort this context
+	s.mu.Lock()
+	conv.PromptCancel = cancel
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		conv.PromptCancel = nil
+		s.mu.Unlock()
+	}()
+	
 	// Mark continuation if we reconnected and conversation has prior messages
 	isContinuation := justConnected && len(conv.Messages) > 1
 
