@@ -63,6 +63,11 @@ type TokenStats struct {
 	LLMCalls         int `json:"llm_calls"`
 }
 
+type ManualToolCall struct {
+	Name      string         `json:"name"`
+	Arguments map[string]any `json:"arguments"`
+}
+
 type ToolDefInfo struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
@@ -482,6 +487,135 @@ func (s *Server) initAndListTools(ctx context.Context, c *client.Client) ([]Tool
 	return defs, nil
 }
 
+// executeManualToolCalls executes a list of manual tool calls by invoking the
+// appropriate MCP server. It resolves which MCP server provides each tool based
+// on the agent's configuration, calls the tool, and returns the text results.
+func (s *Server) executeManualToolCalls(ctx context.Context, agentName string, calls []ManualToolCall) ([]string, error) {
+	if len(calls) == 0 {
+		return nil, nil
+	}
+
+	agentCfg, _ := s.agentCfg.Lookup(agentName)
+	if agentCfg == nil {
+		return nil, fmt.Errorf("agent %q not found", agentName)
+	}
+
+	// Build a map: toolName → MCP server config (or "devkit"/"ask"/"agents")
+	toolToServer := make(map[string]string)
+	for _, token := range agentCfg.ToolNames() {
+		switch token {
+		case "devkit", "ask", "agents":
+			// These are handled in-process by the ACP agent, not callable from server.
+			// We can only call MCP stdio/url tools directly.
+		default:
+			if s.mcpCfg != nil {
+				if scfg, ok := s.mcpCfg.MCPS[token]; ok {
+					// Resolve tool defs for this MCP server and map each tool name
+					var defs []ToolDefInfo
+					var err error
+					if scfg.Stdio != "" {
+						parts := parseStdioCommand(scfg.Stdio)
+						defs, err = s.resolveMCPToolDefsStdio(ctx, parts[0], parts[1:]...)
+					} else if scfg.URL != "" {
+						defs, err = s.resolveMCPToolDefsURL(ctx, scfg.URL)
+					}
+					if err != nil {
+						s.dlog.Log("executeManualToolCalls resolve %s: %v", token, err)
+						continue
+					}
+					for _, d := range defs {
+						toolToServer[d.Name] = token
+					}
+				}
+			}
+		}
+	}
+
+	var results []string
+	for _, tc := range calls {
+		mcpToken, ok := toolToServer[tc.Name]
+		if !ok {
+			results = append(results, fmt.Sprintf("Tool %q not available for manual execution (only MCP tools are supported)", tc.Name))
+			continue
+		}
+
+		scfg, ok := s.mcpCfg.MCPS[mcpToken]
+		if !ok {
+			results = append(results, fmt.Sprintf("MCP server %q not found for tool %q", mcpToken, tc.Name))
+			continue
+		}
+
+		result, err := s.callMCPTool(ctx, scfg, tc.Name, tc.Arguments)
+		if err != nil {
+			results = append(results, fmt.Sprintf("Error calling %s: %v", tc.Name, err))
+		} else {
+			results = append(results, result)
+		}
+	}
+	return results, nil
+}
+
+// callMCPTool connects to an MCP server and calls a tool by name.
+func (s *Server) callMCPTool(ctx context.Context, scfg mcps.ServerConfig, toolName string, args map[string]any) (string, error) {
+	var c *client.Client
+	var err error
+	var cleanup func()
+
+	if scfg.Stdio != "" {
+		parts := parseStdioCommand(scfg.Stdio)
+		c, err = client.NewStdioMCPClient(parts[0], nil, parts[1:]...)
+		if err != nil {
+			return "", fmt.Errorf("stdio MCP client: %w", err)
+		}
+		cleanup = func() { c.Close() }
+	} else if scfg.URL != "" {
+		c, err = client.NewStreamableHttpClient(scfg.URL)
+		if err != nil {
+			return "", fmt.Errorf("http MCP client: %w", err)
+		}
+		cleanup = func() {} // http client doesn't need close
+	} else {
+		return "", fmt.Errorf("MCP server has no stdio or url config")
+	}
+	defer cleanup()
+
+	// Initialize
+	initCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	if _, err := c.Initialize(initCtx, mcp.InitializeRequest{
+		Params: mcp.InitializeParams{
+			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
+			ClientInfo: mcp.Implementation{
+				Name:    "llmdevkit-server",
+				Version: "0.1.0",
+			},
+		},
+	}); err != nil {
+		return "", fmt.Errorf("MCP initialize: %w", err)
+	}
+
+	// Call tool
+	callReq := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name:      toolName,
+			Arguments: args,
+		},
+	}
+	result, err := c.CallTool(ctx, callReq)
+	if err != nil {
+		return "", fmt.Errorf("call tool: %w", err)
+	}
+
+	// Extract text from result
+	var texts []string
+	for _, content := range result.Content {
+		if textContent, ok := content.(mcp.TextContent); ok {
+			texts = append(texts, textContent.Text)
+		}
+	}
+	return strings.Join(texts, "\n"), nil
+}
+
 // ── API: Conversations ──────────────────────────────────────────────────────
 
 func (s *Server) handleConversations(w http.ResponseWriter, r *http.Request) {
@@ -605,14 +739,15 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 	}
 
 	var req struct {
-		Prompt string `json:"prompt"`
+		Prompt    string           `json:"prompt"`
+		ToolCalls []ManualToolCall `json:"tool_calls,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
 
-	s.dlog.Log("INIT conv=%s prompt=%q", convID, req.Prompt)
+	s.dlog.Log("INIT conv=%s prompt=%q tool_calls=%d", convID, req.Prompt, len(req.ToolCalls))
 
 	s.mu.Lock()
 	conv, ok := s.convs[convID]
@@ -665,13 +800,41 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 		conv.Tools = agentCfg.ToolNames()
 	}
 
+	// Execute manual tool calls
+	var toolResults []string
+	if len(req.ToolCalls) > 0 {
+		results, err := s.executeManualToolCalls(r.Context(), conv.Agent, req.ToolCalls)
+		if err != nil {
+			writeJSONError(w, fmt.Sprintf("tool execution error: %v", err))
+			return
+		}
+		toolResults = results
+	}
+
+	promptText := req.Prompt
+	if len(toolResults) > 0 {
+		promptText = req.Prompt + "\n\n--- Manual Tool Results ---\n" + strings.Join(toolResults, "\n\n")
+	}
+
 	conv.Messages = append(conv.Messages, BubbleMessage{
 		Type:      "user",
 		Content:   req.Prompt,
 		Timestamp: nowISO(),
 	})
 
-
+	// Add tool_request/tool_response bubbles for manual tool calls
+	for i, tc := range req.ToolCalls {
+		toolReqContent := map[string]any{
+			"title":     tc.Name,
+			"name":      tc.Name,
+			"arguments": tc.Arguments,
+		}
+		toolReqJSON, _ := json.Marshal(toolReqContent)
+		s.addBubble(convID, BubbleMessage{Type: "tool_request", Name: tc.Name, Content: string(toolReqJSON), Timestamp: nowISO()})
+		if i < len(toolResults) {
+			s.addBubble(convID, BubbleMessage{Type: "tool_response", Name: tc.Name, Content: toolResults[i], Timestamp: nowISO()})
+		}
+	}
 
 	s.appendJSONL(convID, "init", map[string]interface{}{
 		"agent":        conv.Agent,
@@ -690,7 +853,7 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 	s.broadcastSSE("", "conversation_updated", &convCopy)
 
 	s.dlog.Log("INIT starting runACPPrompt goroutine for conv=%s", convID)
-	go s.runACPPrompt(convID, req.Prompt)
+	go s.runACPPrompt(convID, promptText)
 
 	writeJSON(w, map[string]interface{}{
 		"conversation": conv,
@@ -704,7 +867,8 @@ func (s *Server) handleConvPrompt(w http.ResponseWriter, r *http.Request, convID
 	}
 
 	var req struct {
-		Prompt string `json:"prompt"`
+		Prompt    string           `json:"prompt"`
+		ToolCalls []ManualToolCall `json:"tool_calls,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), 400)
@@ -732,9 +896,40 @@ func (s *Server) handleConvPrompt(w http.ResponseWriter, r *http.Request, convID
 	}
 	s.mu.RUnlock()
 
+	// Execute manual tool calls and collect results
+	var toolResults []string
+	if len(req.ToolCalls) > 0 {
+		results, err := s.executeManualToolCalls(r.Context(), conv.Agent, req.ToolCalls)
+		if err != nil {
+			writeJSONError(w, fmt.Sprintf("tool execution error: %v", err))
+			return
+		}
+		toolResults = results
+	}
+
+	promptText := req.Prompt
+	if len(toolResults) > 0 {
+		promptText = req.Prompt + "\n\n--- Manual Tool Results ---\n" + strings.Join(toolResults, "\n\n")
+	}
+
 	s.mu.Lock()
 	ts := nowISO()
 	conv.Messages = append(conv.Messages, BubbleMessage{Type: "user", Content: req.Prompt, Timestamp: ts})
+	// Add tool_request and tool_response bubbles for each manual tool call
+	for i, tc := range req.ToolCalls {
+		toolReqContent := map[string]any{
+			"title":     tc.Name,
+			"name":      tc.Name,
+			"arguments": tc.Arguments,
+		}
+		toolReqJSON, _ := json.Marshal(toolReqContent)
+		s.mu.Unlock()
+		s.addBubble(convID, BubbleMessage{Type: "tool_request", Name: tc.Name, Content: string(toolReqJSON), Timestamp: nowISO()})
+		if i < len(toolResults) {
+			s.addBubble(convID, BubbleMessage{Type: "tool_response", Name: tc.Name, Content: toolResults[i], Timestamp: nowISO()})
+		}
+		s.mu.Lock()
+	}
 	// Snapshot for SSE broadcast under lock to avoid data race with goroutine
 	convCopy := *conv
 	convCopy.Messages = make([]BubbleMessage, len(conv.Messages))
@@ -745,7 +940,7 @@ func (s *Server) handleConvPrompt(w http.ResponseWriter, r *http.Request, convID
 	s.setConvRunning(convID, true)
 	s.broadcastSSE("", "conversation_updated", &convCopy)
 
-	go s.runACPPrompt(convID, req.Prompt)
+	go s.runACPPrompt(convID, promptText)
 
 	writeJSON(w, map[string]interface{}{})
 }

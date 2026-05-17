@@ -55,7 +55,19 @@ export async function sendPrompt() {
   if (!text) return;
   input.value = '';
   input.style.height = 'auto';
+  await doSendPrompt(text, []);
+}
 
+export async function sendPromptWithTools(toolCalls) {
+  const input = document.getElementById('promptInput');
+  const text = input.value.trim();
+  if (!text && toolCalls.length === 0) return;
+  input.value = '';
+  input.style.height = 'auto';
+  await doSendPrompt(text, toolCalls);
+}
+
+async function doSendPrompt(text, toolCalls) {
   let conv = getActiveConv();
   if (!conv) {
     await newConversation();
@@ -64,10 +76,12 @@ export async function sendPrompt() {
   }
 
   if (!conv.acp_session_id) {
+    const body = {prompt: text};
+    if (toolCalls && toolCalls.length > 0) body.tool_calls = toolCalls;
     const initR = await fetch('/api/conversations/' + conv.id + '/init', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({prompt: text})
+      body: JSON.stringify(body)
     });
     const data = await initR.json();
     if (data.error) { alert(data.error); return; }
@@ -102,10 +116,12 @@ export async function sendPrompt() {
   updateState(conv);
 
   try {
+    const body = {prompt: text};
+    if (toolCalls && toolCalls.length > 0) body.tool_calls = toolCalls;
     const r = await fetch('/api/conversations/' + conv.id + '/prompt', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({prompt: text})
+      body: JSON.stringify(body)
     });
     const data = await r.json();
     if (data.conversation) {

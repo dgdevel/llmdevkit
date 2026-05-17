@@ -14,5 +14,6 @@ export const S = {
   _renderScheduled: false,
   _streamUpdateScheduled: false,
   setupModalEl: null,
+  toolEnrichModalEl: null,
   _bubbleId: 0,
 };

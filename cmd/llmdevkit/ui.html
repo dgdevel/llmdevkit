@@ -79,7 +79,16 @@ html,body{height:100%;overflow:hidden}
     <div class="px-3 py-2 border-top flex-shrink-0">
       <div class="d-flex gap-2 align-items-end">
         <textarea class="form-control flex-grow-1 msg-input" id="promptInput" rows="1" placeholder="Type your prompt… (Enter to send, Shift+Enter for newline)" onkeydown="onPromptKey(event)" oninput="autoGrow(this)"></textarea>
-        <button class="btn btn-primary text-nowrap" id="sendBtn" onclick="sendPrompt()">▶ Send</button>
+        <div class="btn-group" id="sendBtnGroup">
+          <button class="btn btn-primary text-nowrap" id="sendBtn" onclick="sendPrompt()">▶ Send</button>
+          <button class="btn btn-primary dropdown-toggle dropdown-toggle-split" type="button" id="sendDropdownToggle" data-bs-toggle="dropdown" aria-expanded="false" style="padding-left:.3rem;padding-right:.6rem">
+            <span class="visually-hidden">Toggle Dropdown</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" id="sendMenu">
+            <li><a class="dropdown-item" href="#" id="sendChoiceSend" onclick="sendPrompt()">Send message</a></li>
+            <li><a class="dropdown-item" href="#" id="sendChoiceTools" onclick="openToolEnrich()">Add tool calls…</a></li>
+          </ul>
+        </div>
         <button class="btn btn-outline-secondary text-nowrap" id="undoBtn" onclick="undoLastPrompt()">↩ Undo</button>
         <button class="btn btn-outline-warning text-nowrap" id="trimBtn" onclick="trimConversation()">✂ Trim</button>
       </div>
@@ -109,17 +118,49 @@ html,body{height:100%;overflow:hidden}
   </div>
 </div>
 
+<!-- Tool enrichment modal -->
+<div class="modal fade" id="toolEnrichModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title text-primary">Add Tool Calls</h5>
+      </div>
+      <div class="modal-body">
+        <div id="toolEnrichList" class="mb-3" style="max-height:200px;overflow-y:auto"></div>
+        <hr class="my-2">
+        <div class="row g-2 align-items-end">
+          <div class="col-sm-5">
+            <label class="form-label small text-body-secondary mb-1">Tool</label>
+            <select class="form-select form-select-sm" id="toolEnrichSelect"></select>
+          </div>
+          <div class="col-sm-5">
+            <div id="toolEnrichArgs"></div>
+          </div>
+          <div class="col-sm-2">
+            <button class="btn btn-sm btn-outline-primary w-100" id="toolEnrichAddBtn">+ Add</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" id="toolEnrichSendBtn">▶ Send with Tools</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
 <script type="module">
 import { S } from './js/state.js';
 import { loadAgents, loadConversations, renderConvList, selectConversation } from './js/sidebar.js';
 import { newConversation, cancelSetup, confirmSetup, onAgentChange } from './js/conversation.js';
-import { autoGrow, onPromptKey, sendPrompt, cancelSession, undoLastPrompt, trimConversation } from './js/prompt.js';
+import { autoGrow, onPromptKey, sendPrompt, sendPromptWithTools, cancelSession, undoLastPrompt, trimConversation } from './js/prompt.js';
 import { connectSSE } from './js/events.js';
 import { answerAsk, answerExec, submitDeny, answerChoice, answerCustom } from './js/asks.js';
 import { initLazyExpand } from './js/bubble.js';
 import { renderQueue, removeFromQueue } from './js/queue.js';
 import { initNotifications, toggleNotifications } from './js/notifications.js';
+import { initToolEnrichModal, openToolEnrichModal } from './js/tool-enrich.js';
 
 // Expose to inline onclick handlers
 window.newConversation = newConversation;
@@ -138,6 +179,7 @@ window.submitDeny = submitDeny;
 window.answerChoice = answerChoice;
 window.answerCustom = answerCustom;
 window.toggleNotifications = toggleNotifications;
+window.openToolEnrich = openToolEnrichModal;
 
 // Queue delete button delegation
 document.getElementById('queueContainer').addEventListener('click', (e) => {
@@ -151,6 +193,7 @@ document.getElementById('queueContainer').addEventListener('click', (e) => {
 // Init
 S.setupModalEl = new bootstrap.Modal(document.getElementById('setupModal'));
 initLazyExpand();
+initToolEnrichModal();
 await loadAgents();
 await loadConversations();
 renderConvList();
