@@ -389,3 +389,10 @@ Listens on `http://localhost:18681` and serves a single-page chat application.
 | `/api/sidechannel` | POST | Internal endpoint for ACP subprocess callbacks |
 | `/api/events` | GET | SSE stream for real-time updates |
 | `/api/notifications?since=<ts>` | GET | Poll notification events (ask-tool and turn completion) since a Unix timestamp; used by the service worker |
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 or later - see the [LICENSE](https://github.com/dgdevel/llmdevkit/blob/main/LICENSE.md) file for details.
+
+Copyright © 2026 Daniele Guttuso
+
