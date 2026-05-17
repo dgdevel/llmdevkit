@@ -15,6 +15,7 @@ func setupTestRoot(t *testing.T) string {
 	os.WriteFile(filepath.Join(root, "file1.txt"), []byte("hello\nworld\nfoo"), 0644)
 	os.WriteFile(filepath.Join(root, "subdir", "nested.txt"), []byte("hello\nbar"), 0644)
 	RootDir = root
+	lastSedSignature = ""
 	return root
 }
 

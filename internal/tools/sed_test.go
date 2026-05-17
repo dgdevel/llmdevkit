@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 
@@ -24,17 +23,38 @@ func TestSedReplace(t *testing.T) {
 			},
 		},
 	}
+
+	// First call: dry-run
 	result, err := SedHandler(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.IsError {
-		t.Fatal("sed returned error")
+		t.Fatal("sed dry-run returned error")
 	}
-	if textOf(t, result) != "file1.txt:1:HI" {
-		t.Errorf("sed: got %q, want %q", textOf(t, result), "file1.txt:1:HI")
+	txt := textOf(t, result)
+	if !strings.Contains(txt, "this will edit 1 lines") {
+		t.Fatalf("expected dry-run message, got %q", txt)
 	}
+	// File should not be modified yet
 	data, _ := os.ReadFile(filepath.Join(RootDir, "file1.txt"))
+	if string(data) != "hello\nworld\nfoo" {
+		t.Fatalf("file modified before confirmation, got %q", string(data))
+	}
+
+	// Second call: apply
+	result, err = SedHandler(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatal("sed apply returned error")
+	}
+	txt = textOf(t, result)
+	if !strings.Contains(txt, "replaced 1 occurrences in 1 files") {
+		t.Fatalf("expected apply message, got %q", txt)
+	}
+	data, _ = os.ReadFile(filepath.Join(RootDir, "file1.txt"))
 	if string(data) != "HI\nworld\nfoo" {
 		t.Errorf("sed: file content got %q, want %q", string(data), "HI\nworld\nfoo")
 	}
@@ -78,24 +98,33 @@ func TestSedGlobstar(t *testing.T) {
 			},
 		},
 	}
+
+	// First call: dry-run
 	result, err := SedHandler(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.IsError {
-		t.Fatal("sed returned error")
+		t.Fatal("sed dry-run returned error")
 	}
-	lines := strings.Split(textOf(t, result), "\n")
-	sort.Strings(lines)
-	want := []string{"file1.txt:1:HEY", "subdir/nested.txt:1:HEY"}
-	if len(lines) != len(want) {
-		t.Fatalf("sed **/*.txt: got %v, want %v", lines, want)
+	txt := textOf(t, result)
+	if !strings.Contains(txt, "this will edit 2 lines") {
+		t.Fatalf("expected dry-run with 2 lines, got %q", txt)
 	}
-	for i, l := range lines {
-		if l != want[i] {
-			t.Errorf("sed **/*.txt: got %v, want %v", lines, want)
-		}
+
+	// Second call: apply
+	result, err = SedHandler(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
 	}
+	if result.IsError {
+		t.Fatal("sed apply returned error")
+	}
+	txt = textOf(t, result)
+	if !strings.Contains(txt, "replaced 2 occurrences in 2 files") {
+		t.Fatalf("expected apply message, got %q", txt)
+	}
+
 	d1, _ := os.ReadFile(filepath.Join(RootDir, "file1.txt"))
 	if string(d1) != "HEY\nworld\nfoo" {
 		t.Errorf("sed file1.txt: got %q", string(d1))
