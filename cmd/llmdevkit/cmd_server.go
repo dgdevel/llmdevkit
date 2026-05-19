@@ -2379,7 +2379,32 @@ func (s *Server) loadConversations() error {
 						last.Content += b.Content
 					}
 				}
-
+			
+			case "tool_request_rawinput":
+				var data struct {
+					ToolCallID string `json:"toolCallId"`
+					RawInput   string `json:"rawInput"`
+				}
+				if err := json.Unmarshal(line.Payload, &data); err == nil {
+					for i := len(conv.Messages) - 1; i >= 0; i-- {
+						m := &conv.Messages[i]
+						if m.Type == "tool_request" {
+							var parsed map[string]json.RawMessage
+							if err := json.Unmarshal([]byte(m.Content), &parsed); err == nil {
+								if tcID, ok := parsed["toolCallId"]; ok {
+									var idStr string
+									if err := json.Unmarshal(tcID, &idStr); err == nil && idStr == data.ToolCallID {
+										parsed["rawInput"] = json.RawMessage(data.RawInput)
+										updated, _ := json.Marshal(parsed)
+										m.Content = string(updated)
+										break
+									}
+								}
+							}
+						}
+					}
+				}
+			
 			case "prompt":
 				var data struct {
 					Prompt string `json:"prompt"`
