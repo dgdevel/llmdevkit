@@ -4,6 +4,8 @@ import { S } from './state.js';
 // Lazy content store: bubble ID → HTML string
 const lazyContent = new Map();
 
+export { lazyContent };
+
 export function bubbleHTML(cls, label, content, raw, collapsed, brief, timestamp, tokenCount) {
   const id = 'bc-' + (S._bubbleId++);
   const briefHtml = (collapsed && brief) ? `<span class="brief-badge badge text-bg-secondary fw-normal text-truncate ms-2" style="max-width:250px">${brief}</span>` : '';
