@@ -356,7 +356,8 @@ Listens on `http://localhost:18681` and serves a single-page chat application.
 
 - **Web chat UI** — embedded single-page app with dark theme, conversation sidebar, markdown rendering, and auto-scroll
 - **Agent selection** — pick any agent defined in `agents.yml`; system prompt and tool set are loaded from config
-- **LLM selection** — pick any LLM to use with any agent
+- **LLM selection** — pick any LLM from `llms.yml` to use with any agent; can switch mid-conversation, persisted across restarts
+- **AGENTS.md** — if present in the project root, its content is appended to the system prompt on every turn, providing project-specific instructions to the agent
 - **Real-time streaming** — LLM text and thinking chunks are streamed live via Server-Sent Events (SSE)
 - **Tool call visualization** — shows tool requests and responses as styled message bubbles
 - **Human-in-the-loop tools** — interactive UI for three tool types proxied from the ACP subprocess:
@@ -380,6 +381,7 @@ Listens on `http://localhost:18681` and serves a single-page chat application.
 |----------|--------|-------------|
 | `/` | GET | Serve the embedded web UI |
 | `/api/agents` | GET | List available agents and their LLM models |
+| `/api/llms` | GET | List available LLMs from `llms.yml` |
 | `/api/tooldefs?agent=<name>` | GET | List tool definitions for an agent |
 | `/api/conversations` | GET | List all conversations |
 | `/api/conversations` | POST | Create a new conversation |
@@ -389,6 +391,7 @@ Listens on `http://localhost:18681` and serves a single-page chat application.
 | `/api/conversations/<id>/prompt` | POST | Send a follow-up prompt |
 | `/api/conversations/<id>/cancel` | POST | Cancel a running agent turn |
 | `/api/conversations/<id>/rename` | POST | Rename a conversation |
+| `/api/conversations/<id>/llm_change` | POST | Change the LLM for a conversation |
 | `/api/conversations/<id>/undo` | POST | Remove last exchange (assistant + user message) |
 | `/api/conversations/<id>/trim` | POST | Remove all exchanges from a given index onward |
 | `/api/conversations/<id>/enqueue` | POST | Enqueue a prompt for later delivery |
