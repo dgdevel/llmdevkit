@@ -316,9 +316,7 @@ agents:
       on_turn_begin:              # fired before each LLM turn
         another_tool:
           argname: fixed-value
-      on_turn_end:                # fired after each LLM turn
-      on_conversation_end:        # fired when conversation ends
-```
+      ```
 
 #### Tool sources
 

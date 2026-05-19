@@ -196,7 +196,13 @@ type TokenStats struct {
 func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userPrompt string) ([]ChatMessage, string, error) {
 	dlog := debuglog.For("runner")
 	dlog.Log("RunPrompt msg_count=%d user_prompt_len=%d", len(messages), len(userPrompt))
-	// Execute on_conversation_begin hooks (only on first message)
+
+	// The last element in messages is the user prompt for this turn.
+	// Hooks inject system messages right after that user prompt so their
+	// position is stable across turns (important for KV-cache/checkpoint reuse).
+
+	// Execute on_conversation_begin hooks (only on first turn).
+	// Placed right after the first user prompt.
 	if !r.skipConvBegin && len(messages) <= 1 {
 		hookCtx, err := r.executeHooks(ctx, agents.HookConversationBegin, userPrompt)
 		if err != nil {
@@ -207,7 +213,8 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 		}
 	}
 
-	// Execute on_turn_begin hooks
+	// Execute on_turn_begin hooks.
+	// Placed right after the user prompt that starts this turn.
 	hookCtx, err := r.executeHooks(ctx, agents.HookTurnBegin, userPrompt)
 	if err != nil {
 		return nil, "", fmt.Errorf("hook turn_begin: %w", err)
@@ -227,18 +234,20 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 		Tools:    r.registry.ListForOpenAI(),
 	}
 
+	// Build ephemeral system message (system prompt + AGENTS.md).
+	// This is prepended for every LLM call but never included in the
+	// returned messages, so it never accumulates across turns.
 	systemMsg := ChatMessage{Role: "system", Content: r.agent.SystemPrompt}
-	// Append AGENTS.md content if present (read fresh each time, not cached)
 	if r.rootDir != "" {
 		agentsMD, err := os.ReadFile(filepath.Join(r.rootDir, "AGENTS.md"))
 		if err == nil && len(agentsMD) > 0 {
 			systemMsg.Content += "\n\n# AGENTS.md - Project Specific Instructions\n\n" + string(agentsMD)
 		}
 	}
-	fullMessages := append([]ChatMessage{systemMsg}, messages...)
+	llmMessages := append([]ChatMessage{systemMsg}, messages...)
 
 	for {
-		reqBody.Messages = fullMessages
+		reqBody.Messages = llmMessages
 
 		resp, err := r.callLLM(ctx, reqBody)
 		if err != nil {
@@ -275,13 +284,17 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 
 		// No tool calls → done
 		if len(assistantMsg.ToolCalls) == 0 || choice.FinishReason == "stop" {
-			// Execute on_turn_end hooks
-			_, _ = r.executeHooks(ctx, agents.HookTurnEnd, userPrompt)
-			return fullMessages, assistantMsg.Content, nil
+			return messages, assistantMsg.Content, nil
 		}
 
 		// Process tool calls in parallel
-		fullMessages = append(fullMessages, ChatMessage{
+		llmMessages = append(llmMessages, ChatMessage{
+			Role:      "assistant",
+			Content:   assistantMsg.Content,
+			ToolCalls: assistantMsg.ToolCalls,
+		})
+		// Also track in messages (the stable conversation history)
+		messages = append(messages, ChatMessage{
 			Role:      "assistant",
 			Content:   assistantMsg.Content,
 			ToolCalls: assistantMsg.ToolCalls,
@@ -327,11 +340,13 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 		wg.Wait()
 
 		for _, res := range results {
-			fullMessages = append(fullMessages, ChatMessage{
+			toolMsg := ChatMessage{
 				Role:       "tool",
 				Content:    res.content,
 				ToolCallID: res.toolCallID,
-			})
+			}
+			llmMessages = append(llmMessages, toolMsg)
+			messages = append(messages, toolMsg)
 		}
 	}
 }

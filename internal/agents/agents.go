@@ -25,8 +25,6 @@ type AgentConfig struct {
 const (
 	HookConversationBegin = "on_conversation_begin"
 	HookTurnBegin         = "on_turn_begin"
-	HookTurnEnd           = "on_turn_end"
-	HookConversationEnd   = "on_conversation_end"
 )
 
 func ConfigPath(rootDir string) string {

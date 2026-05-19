@@ -92,6 +92,4 @@ agents:
       on_conversation_begin:
         tree : {}
       on_turn_begin: {}
-      on_turn_end: {}
-      on_conversation_end: {}
 
