@@ -316,7 +316,7 @@ agents:
       on_turn_begin:              # fired before each LLM turn
         another_tool:
           argname: fixed-value
-      ```
+```
 
 #### Tool sources
 
