@@ -22,7 +22,7 @@ func GrepHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRes
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	re, err := regexp.Compile(pattern)
+	re, err := regexp.Compile("(?i)" + pattern)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
