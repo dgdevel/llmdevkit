@@ -41,7 +41,9 @@ html,body{height:100%;overflow:hidden}
   <span class="fw-bold text-primary small">LLM DevKit</span>
   <select class="form-select form-select-sm py-0" id="llmSelect" style="width:auto;max-width:200px" onchange="onLLMChange()" disabled></select>
   <span class="small text-body-secondary flex-grow-1" id="stateInfo"></span>
-
+  
+  <span class="badge text-bg-secondary small d-none" id="ctxUsageBadge" title="Context window usage"></span>
+  
   <button class="btn btn-sm btn-outline-danger" id="notifBtn" onclick="toggleNotifications()" title="Notifications disabled (click to enable)">🔔</button>
 
   <div class="form-check form-switch mb-0 d-inline-flex align-items-center gap-1 small">

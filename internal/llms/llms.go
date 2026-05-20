@@ -14,11 +14,12 @@ type Config struct {
 }
 
 type LLMConfig struct {
-	Name    string            `yaml:"name"`
-	APIBase string            `yaml:"api_base"`
-	Model   string            `yaml:"model,omitempty"`
-	APIKey  string            `yaml:"api_key,omitempty"`
-	Headers map[string]string `yaml:"headers,omitempty"`
+	Name        string            `yaml:"name"`
+	APIBase     string            `yaml:"api_base"`
+	Model       string            `yaml:"model,omitempty"`
+	APIKey      string            `yaml:"api_key,omitempty"`
+	Headers     map[string]string `yaml:"headers,omitempty"`
+	ContextSize int               `yaml:"context_size,omitempty"`
 }
 
 func ConfigPath(rootDir string) string {

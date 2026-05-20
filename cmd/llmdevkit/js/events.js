@@ -2,7 +2,7 @@ import { S } from './state.js';
 import { renderConvList, selectConversation } from './sidebar.js';
 import { getActiveConv } from './conversation.js';
 import { renderMessages, scrollToBottom, updateLastLLMTokenCount } from './messages.js';
-import { updateState } from './state-ui.js';
+import { updateState, updateCtxUsageBadge } from './state-ui.js';
 import { scheduleRender, updateStreamingBubble } from './prompt.js';
 import { updateTasksFromToolResponse, renderTaskList } from './tasks.js';
 import { handleAskOpenEnded, handleAskExec, handleAskMultipleChoice } from './asks.js';
@@ -48,7 +48,8 @@ function handleEvent(ev) {
         system_prompt: remote.system_prompt,
         tools: remote.tools,
         acp_session_id: remote.acp_session_id,
-        file_size: remote.file_size
+        file_size: remote.file_size,
+        last_prompt_tokens: remote.last_prompt_tokens
       });
     }
     renderConvList();
@@ -90,15 +91,21 @@ function handleEvent(ev) {
       if (conv.id === S.activeConvId) updateQueueFromSSE(conv.queue);
       break;
     case 'token_stats':
-      if (ev.data && ev.data.total_tokens) {
+      if (ev.data) {
         const tokens = ev.data.total_tokens || 0;
-        for (let i = conv.messages.length - 1; i >= 0; i--) {
-          if (conv.messages[i].type === 'llm') {
-            conv.messages[i].token_count = tokens;
-            break;
+        if (tokens > 0) {
+          for (let i = conv.messages.length - 1; i >= 0; i--) {
+            if (conv.messages[i].type === 'llm') {
+              conv.messages[i].token_count = tokens;
+              break;
+            }
           }
+          if (conv.id === S.activeConvId) updateLastLLMTokenCount(tokens);
         }
-        if (conv.id === S.activeConvId) updateLastLLMTokenCount(tokens);
+        if (ev.data.prompt_tokens) {
+          S.lastPromptTokens[conv.id] = ev.data.prompt_tokens;
+          if (conv.id === S.activeConvId) updateCtxUsageBadge(conv);
+        }
       }
       break;
     case 'tool_request_update':

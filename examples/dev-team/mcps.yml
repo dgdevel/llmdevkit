@@ -1,0 +1,24 @@
+mcps:
+  deepwiki:
+    url: https://mcp.deepwiki.com/mcp
+    tools:
+      read_wiki_structure:
+        rename: repo_topics
+        description: "List of topics for a GitHub repo"
+        arguments:
+          repoName:
+            description: "GitHub repo in owner/repo format"
+      read_wiki_contents:
+        rename: repo_info
+        description: "Extensive info about GitHub repo"
+        arguments:
+          repoName:
+            description: "GitHub repo in owner/repo format"
+      ask_question:
+        rename: repo_ask
+        description: "Ask question about repo"
+        arguments:
+          repoName:
+            description: "GitHub repo in owner/repo format"
+          question:
+            description: "question to ask"

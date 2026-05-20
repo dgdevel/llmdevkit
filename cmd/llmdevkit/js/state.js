@@ -11,6 +11,7 @@ export const S = {
   toolCallIdToName: {},
   toolDefsCache: {},
   messageQueue: [],
+  lastPromptTokens: {},  // convId → last prompt_tokens from token_stats
 
   _renderScheduled: false,
   _streamUpdateScheduled: false,

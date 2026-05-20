@@ -91,6 +91,7 @@ type Conversation struct {
 	Initialized  bool   `json:"-"`
 
 	PendingTokenCount int `json:"-"` // set by token_stats side channel, applied when prompt finishes
+	LastPromptTokens  int `json:"last_prompt_tokens,omitempty"`
 	
 	PromptCancel context.CancelFunc `json:"-"` // cancel the running prompt context
 	}
@@ -368,7 +369,7 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 			if displayName == "" {
 				displayName = l.Name
 			}
-			list = append(list, llmInfo{Name: l.Name, DisplayName: displayName})
+			list = append(list, llmInfo{Name: l.Name, DisplayName: displayName, ContextSize: l.ContextSize})
 		}
 	}
 	writeJSON(w, list)
@@ -377,6 +378,7 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 	type llmInfo struct {
 	Name        string `json:"name"`
 	DisplayName string `json:"display_name"`
+	ContextSize int    `json:"context_size,omitempty"`
 	}
 	
 	// ── API: Tool Definitions ───────────────────────────────────────────────────
@@ -1924,6 +1926,7 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		if conv, ok := s.convs[convID]; ok {
 			conv.PendingTokenCount = stats.TotalTokens
+			conv.LastPromptTokens = stats.PromptTokens
 		}
 		s.mu.Unlock()
 
@@ -2430,6 +2433,7 @@ func (s *Server) loadConversations() error {
 				var ts TokenStats
 				json.Unmarshal(line.Payload, &ts)
 				pendingTC = ts.TotalTokens
+				conv.LastPromptTokens = ts.PromptTokens
 			}
 		}
 		f.Close()
