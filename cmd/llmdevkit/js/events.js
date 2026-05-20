@@ -54,9 +54,8 @@ function handleEvent(ev) {
     }
     renderConvList();
     if (S.activeConvId === ev.data?.id) {
-      renderMessages(getActiveConv());
+      updateState(getActiveConv());
     }
-    updateState(getActiveConv());
     return;
     }
 
