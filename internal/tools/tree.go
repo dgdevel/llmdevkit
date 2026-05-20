@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,8 @@ func TreeHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRes
 		name     string
 		children []*dirNode
 		isDir    bool
+		size     int64
+		absPath  string
 	}
 
 	var withFiles bool
@@ -42,7 +45,12 @@ func TreeHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRes
 					node.children = append(node.children, child)
 				}
 			} else if withFiles {
-				node.children = append(node.children, &dirNode{name: e.Name(), isDir: false})
+				info, _ := e.Info()
+				sz := int64(0)
+				if info != nil {
+					sz = info.Size()
+				}
+				node.children = append(node.children, &dirNode{name: e.Name(), isDir: false, size: sz, absPath: entryPath})
 			}
 		}
 		return node
@@ -61,14 +69,32 @@ func TreeHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRes
 	render = func(children []*dirNode, prefix string) {
 		for i, child := range children {
 			isLast := i == len(children)-1
-			suffix := ""
 			if child.isDir {
-				suffix = "/"
-			}
-			if isLast {
-				buf.WriteString(prefix + "└── " + child.name + suffix + "\n")
+				suffix := child.name + "/"
+				if isLast {
+					buf.WriteString(prefix + "└── " + suffix + "\n")
+				} else {
+					buf.WriteString(prefix + "├── " + suffix + "\n")
+				}
 			} else {
-				buf.WriteString(prefix + "├── " + child.name + suffix + "\n")
+				sizeStr := "?"
+				lineStr := "?"
+				if child.size > 0 || child.absPath != "" {
+					sizeStr = formatEntrySize(child.size)
+					if data, err := os.ReadFile(child.absPath); err == nil {
+						if isBinary(data) {
+							lineStr = "binary"
+						} else {
+							lineStr = fmt.Sprintf("%d lines", countLines(data))
+						}
+					}
+				}
+				label := fmt.Sprintf("%s, %s, %s", sizeStr, lineStr, child.name)
+				if isLast {
+					buf.WriteString(prefix + "└── " + label + "\n")
+				} else {
+					buf.WriteString(prefix + "├── " + label + "\n")
+				}
 			}
 			nextPrefix := prefix + "│   "
 			if isLast {

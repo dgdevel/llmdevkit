@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,7 +28,14 @@ func LsHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResul
 			}
 		}
 	}
-	var matches []string
+
+	type entry struct {
+		rel   string
+		isDir bool
+		info  os.FileInfo
+	}
+	var entries []entry
+
 	err = filepath.WalkDir(RootDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -51,24 +59,50 @@ func LsHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResul
 		if !GlobMatch(pathspec, rel) {
 			return nil
 		}
-		name := rel
-		if d.IsDir() {
-			name += "/"
-		}
-		matches = append(matches, name)
+		info, _ := d.Info()
+		entries = append(entries, entry{rel: rel, isDir: d.IsDir(), info: info})
 		return nil
 	})
 	if err != nil {
 		return mcp.NewToolResultError(MaskPath(err.Error())), nil
 	}
-	if matches == nil {
+	if entries == nil {
 		return mcp.NewToolResultText(""), nil
 	}
-	var b strings.Builder
-	if len(matches) > 500 {
-		b.WriteString("Output cut at 500 lines, refine the search pattern\n")
-		matches = matches[:500]
+
+	cut := len(entries)
+	if cut > 500 {
+		cut = 500
 	}
-	b.WriteString(strings.Join(matches, "\n"))
-	return mcp.NewToolResultText(b.String()), nil
+
+	var b strings.Builder
+	if len(entries) > 500 {
+		b.WriteString("Output cut at 500 lines, refine the search pattern\n")
+	}
+
+	for _, e := range entries[:cut] {
+		if e.isDir {
+			b.WriteString(e.rel + "/")
+		} else {
+			sizeStr := "?"
+			lineStr := "?"
+			if e.info != nil {
+				sizeStr = formatEntrySize(e.info.Size())
+				abs, rErr := Resolve(e.rel)
+				if rErr == nil {
+					if data, readErr := os.ReadFile(abs); readErr == nil {
+						if isBinary(data) {
+							lineStr = "binary"
+						} else {
+							lineStr = fmt.Sprintf("%d lines", countLines(data))
+						}
+					}
+				}
+			}
+			fmt.Fprintf(&b, "%s, %s, %s", sizeStr, lineStr, e.rel)
+		}
+		b.WriteByte('\n')
+	}
+
+	return mcp.NewToolResultText(strings.TrimRight(b.String(), "\n")), nil
 }

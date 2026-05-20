@@ -31,8 +31,8 @@ func TestLsStarGlob(t *testing.T) {
 		t.Fatal("ls returned error")
 	}
 	text := textOf(t, result)
-	if text != "file1.txt" {
-		t.Errorf("ls *.txt: got %q, want %q", text, "file1.txt")
+	if text != "15b, 2 lines, file1.txt" {
+		t.Errorf("ls *.txt: got %q, want %q", text, "15b, 2 lines, file1.txt")
 	}
 }
 
@@ -56,7 +56,7 @@ func TestLsGlobstar(t *testing.T) {
 	}
 	lines := strings.Split(textOf(t, result), "\n")
 	sort.Strings(lines)
-	want := []string{"file1.txt", "subdir/nested.txt"}
+	want := []string{"15b, 2 lines, file1.txt", "9b, 1 lines, subdir/nested.txt"}
 	if len(lines) != len(want) {
 		t.Fatalf("ls **/*.txt: got %v, want %v", lines, want)
 	}
@@ -134,7 +134,7 @@ func TestLsDotPattern(t *testing.T) {
 	}
 	lines := strings.Split(textOf(t, result), "\n")
 	sort.Strings(lines)
-	want := []string{"file1.txt", "subdir/"}
+	want := []string{"15b, 2 lines, file1.txt", "subdir/"}
 	if len(lines) != len(want) {
 		t.Fatalf("ls .: got %v, want %v", lines, want)
 	}
@@ -165,7 +165,7 @@ func TestLsEmptyPattern(t *testing.T) {
 	}
 	lines := strings.Split(textOf(t, result), "\n")
 	sort.Strings(lines)
-	want := []string{"file1.txt", "subdir/"}
+	want := []string{"15b, 2 lines, file1.txt", "subdir/"}
 	if len(lines) != len(want) {
 		t.Fatalf("ls empty: got %v, want %v", lines, want)
 	}
@@ -195,8 +195,8 @@ func TestLsDirectoryWithSlash(t *testing.T) {
 		t.Fatal("ls returned error")
 	}
 	text := textOf(t, result)
-	if text != "subdir/nested.txt" {
-		t.Errorf("ls subdir/: got %q, want %q", text, "subdir/nested.txt")
+	if text != "9b, 1 lines, subdir/nested.txt" {
+		t.Errorf("ls subdir/: got %q, want %q", text, "9b, 1 lines, subdir/nested.txt")
 	}
 }
 
@@ -219,8 +219,8 @@ func TestLsDirectoryWithoutSlash(t *testing.T) {
 		t.Fatal("ls returned error")
 	}
 	text := textOf(t, result)
-	if text != "subdir/nested.txt" {
-		t.Errorf("ls subdir: got %q, want %q", text, "subdir/nested.txt")
+	if text != "9b, 1 lines, subdir/nested.txt" {
+		t.Errorf("ls subdir: got %q, want %q", text, "9b, 1 lines, subdir/nested.txt")
 	}
 }
 

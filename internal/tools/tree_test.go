@@ -37,6 +37,7 @@ func TestTreeBasic(t *testing.T) {
 	if !strings.Contains(text, "├── b/") || !strings.Contains(text, "└── c/") {
 		t.Errorf("expected nested dirs, got:\n%s", text)
 	}
+	// without with_files, files should not appear
 	if strings.Contains(text, "f.txt") {
 		t.Error("files should not appear in tree output")
 	}
@@ -101,5 +102,9 @@ func TestTreeWithFiles(t *testing.T) {
 	}
 	if !strings.Contains(text, "util.go") {
 		t.Errorf("expected nested file, got:\n%s", text)
+	}
+	// Check format: size, lines, filename
+	if !strings.Contains(text, "12b, 0 lines, main.go") {
+		t.Errorf("expected formatted file entry, got:\n%s", text)
 	}
 }
