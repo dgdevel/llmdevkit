@@ -310,8 +310,9 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 		}),
 	}
 	if isContinuation {
-		runnerOpts = append(runnerOpts, runner.WithSkipConversationBegin())
-	}
+			runnerOpts = append(runnerOpts, runner.WithSkipConversationBegin())
+			runnerOpts = append(runnerOpts, runner.WithSkipTurnBegin())
+		}
 	r := runner.NewRunner(llmDef, agentCfg, registry, a.agentCfg, runnerOpts...)
 
 	fullMessages, result, err := r.RunPrompt(promptCtx, messages, promptText)

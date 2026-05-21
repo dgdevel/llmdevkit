@@ -94,7 +94,8 @@ type Runner struct {
 	allAgents    *agents.Config // for agents_available / agent_invoke
 	rootDir      string         // project directory, for reading AGENTS.md
 	skipConvBegin bool
-	onText        func(text string)
+		skipTurnBegin bool
+		onText        func(text string)
 	onToolStart   func(id, title, kind string, arguments json.RawMessage)
 	onToolUpdate  func(id, status, content string)
 	onTokenStats  func(TokenStats)
@@ -124,6 +125,10 @@ func WithRootDir(dir string) Option {
 
 func WithSkipConversationBegin() Option {
 	return func(r *Runner) { r.skipConvBegin = true }
+}
+
+func WithSkipTurnBegin() Option {
+	return func(r *Runner) { r.skipTurnBegin = true }
 }
 
 func NewRunner(llmCfg *llms.LLMConfig, agentCfg *agents.AgentConfig, registry *ToolRegistry, allAgents *agents.Config, opts ...Option) *Runner {
@@ -161,6 +166,7 @@ type chatRequest struct {
 	Messages    []ChatMessage  `json:"messages"`
 	Tools       []map[string]any `json:"tools,omitempty"`
 	MaxTokens   int            `json:"max_tokens,omitempty"`
+	CachePrompt bool           `json:"cache_prompt"`
 }
 
 type chatResponse struct {
@@ -202,26 +208,31 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 	// position is stable across turns (important for KV-cache/checkpoint reuse).
 
 	// Execute on_conversation_begin hooks (only on first turn).
-	// Placed right after the first user prompt.
-	if !r.skipConvBegin && len(messages) <= 1 {
-		hookCtx, err := r.executeHooks(ctx, agents.HookConversationBegin, userPrompt)
-		if err != nil {
-			return nil, "", fmt.Errorf("hook conversation_begin: %w", err)
+		// Placed right after the first user prompt.
+		if !r.skipConvBegin && len(messages) <= 1 {
+			hookCtx, err := r.executeHooks(ctx, agents.HookConversationBegin, userPrompt)
+			if err != nil {
+				return nil, "", fmt.Errorf("hook conversation_begin: %w", err)
+			}
+			if hookCtx != "" {
+				messages = append(messages, ChatMessage{Role: "system", Content: hookCtx})
+			}
+		}
+	
+		// Execute on_turn_begin hooks.
+		// Placed right after the user prompt that starts this turn.
+		// Skip on continuation to keep message sequence identical for KV-cache reuse.
+		var hookCtx string
+		if !r.skipTurnBegin {
+			var err error
+			hookCtx, err = r.executeHooks(ctx, agents.HookTurnBegin, userPrompt)
+			if err != nil {
+				return nil, "", fmt.Errorf("hook turn_begin: %w", err)
+			}
 		}
 		if hookCtx != "" {
 			messages = append(messages, ChatMessage{Role: "system", Content: hookCtx})
 		}
-	}
-
-	// Execute on_turn_begin hooks.
-	// Placed right after the user prompt that starts this turn.
-	hookCtx, err := r.executeHooks(ctx, agents.HookTurnBegin, userPrompt)
-	if err != nil {
-		return nil, "", fmt.Errorf("hook turn_begin: %w", err)
-	}
-	if hookCtx != "" {
-		messages = append(messages, ChatMessage{Role: "system", Content: hookCtx})
-	}
 
 	model := r.llm.Model
 	if model == "" {
@@ -229,10 +240,11 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 	}
 
 	reqBody := chatRequest{
-		Model:    model,
-		Messages: messages,
-		Tools:    r.registry.ListForOpenAI(),
-	}
+			Model:       model,
+			Messages:    messages,
+			Tools:       r.registry.ListForOpenAI(),
+			CachePrompt: true,
+		}
 
 	// Build ephemeral system message (system prompt + AGENTS.md).
 	// This is prepended for every LLM call but never included in the
