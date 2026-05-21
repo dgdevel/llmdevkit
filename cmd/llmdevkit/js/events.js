@@ -8,14 +8,30 @@ import { updateTasksFromToolResponse, renderTaskList } from './tasks.js';
 import { handleAskOpenEnded, handleAskExec, handleAskMultipleChoice } from './asks.js';
 import { updateQueueFromSSE } from './queue.js';
 
+let currentEventSource = null;
+let sseRetryDelay = 1000;
+const MAX_SSE_RETRY_DELAY = 30000;
+
 export function connectSSE() {
+  if (currentEventSource) {
+    currentEventSource.close();
+    currentEventSource = null;
+  }
   const es = new EventSource('/api/events');
+  currentEventSource = es;
+  sseRetryDelay = 1000;
+  es.onopen = () => {
+    sseRetryDelay = 1000;
+  };
   es.onmessage = (e) => {
     const data = JSON.parse(e.data);
     handleEvent(data);
   };
   es.onerror = () => {
-    setTimeout(connectSSE, 3000);
+    es.close();
+    currentEventSource = null;
+    setTimeout(connectSSE, sseRetryDelay);
+    sseRetryDelay = Math.min(sseRetryDelay * 2, MAX_SSE_RETRY_DELAY);
   };
 }
 
