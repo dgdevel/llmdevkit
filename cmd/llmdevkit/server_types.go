@@ -75,35 +75,35 @@ type Conversation struct {
 	LastPromptTokens  int `json:"last_prompt_tokens,omitempty"`
 
 	PromptCancel context.CancelFunc `json:"-"` // cancel the running prompt context
-	
+
 	// File change tracking during a prompt run (transient, not persisted)
 	FileChanges []FileChange `json:"-"`
-	}
-	
-	// FileChange tracks a single file modification during a prompt run.
-	type FileChange struct {
+}
+
+// FileChange tracks a single file modification during a prompt run.
+type FileChange struct {
 	ToolName  string `json:"tool_name"`
 	Path      string `json:"path"`
 	DestPath  string `json:"dest_path,omitempty"` // for mv
 	DiffLines int    `json:"diff_lines,omitempty"`
 	Response  string `json:"-"` // tool response content for parsing
-	}
-	
-	type jsonlLine struct {
+}
+
+type jsonlLine struct {
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload"`
-	}
+}
 
 // -- Server state ------------------------------------------------------------
 
 type Server struct {
-	rootDir  string
-	llmCfg   *llms.Config
-	agentCfg *agents.Config
-	mcpCfg   *mcps.Config
-	dlog     *debuglog.Logger
-	mu       sync.RWMutex
-	convs    map[string]*Conversation
+	rootDir   string
+	llmCfg    *llms.Config
+	agentCfg  *agents.Config
+	mcpCfg    *mcps.Config
+	dlog      *debuglog.Logger
+	mu        sync.RWMutex
+	convs     map[string]*Conversation
 	convOrder []string
 
 	acpConn      *acp.ClientSideConnection
@@ -122,8 +122,8 @@ type Server struct {
 
 	enableIndexer bool
 
-	notifMu    sync.Mutex
-	notifBuf   []notifEvent
+	notifMu  sync.Mutex
+	notifBuf []notifEvent
 }
 
 type notifEvent struct {
@@ -136,7 +136,7 @@ type notifEvent struct {
 type SSEEvent struct {
 	ConversationID string          `json:"conversation_id"`
 	Event          string          `json:"event"`
-	Data          json.RawMessage  `json:"data"`
+	Data           json.RawMessage `json:"data"`
 }
 
 type AskAnswer struct {

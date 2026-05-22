@@ -56,8 +56,8 @@ var extToLang = map[string]string{
 }
 
 type nodeConfig struct {
-	chunkType string
-	bodyKinds []string
+	chunkType  string
+	bodyKinds  []string
 	splitKinds []string
 }
 
@@ -80,24 +80,24 @@ var langNodeConfigs = map[string]map[string]nodeConfig{
 		"export_statement":     {"export", nil, nil},
 	},
 	"typescript": {
-		"function_declaration": {"function", []string{"statement_block"}, nil},
-		"class_declaration":    {"class", []string{"class_body"}, []string{"method_definition", "field_definition", "public_field_definition"}},
-		"method_definition":    {"method", []string{"statement_block"}, nil},
-		"arrow_function":       {"function", []string{"statement_block"}, nil},
-		"interface_declaration": {"interface", []string{"object_type"}, []string{"property_signature", "method_signature", "call_signature"}},
+		"function_declaration":   {"function", []string{"statement_block"}, nil},
+		"class_declaration":      {"class", []string{"class_body"}, []string{"method_definition", "field_definition", "public_field_definition"}},
+		"method_definition":      {"method", []string{"statement_block"}, nil},
+		"arrow_function":         {"function", []string{"statement_block"}, nil},
+		"interface_declaration":  {"interface", []string{"object_type"}, []string{"property_signature", "method_signature", "call_signature"}},
 		"type_alias_declaration": {"type", []string{"object_type", "union_type", "intersection_type"}, nil},
-		"enum_declaration":     {"enum", []string{"enum_body"}, nil},
-		"export_statement":     {"export", nil, nil},
+		"enum_declaration":       {"enum", []string{"enum_body"}, nil},
+		"export_statement":       {"export", nil, nil},
 	},
 	"tsx": {
-		"function_declaration": {"function", []string{"statement_block"}, nil},
-		"class_declaration":    {"class", []string{"class_body"}, []string{"method_definition", "field_definition", "public_field_definition"}},
-		"method_definition":    {"method", []string{"statement_block"}, nil},
-		"arrow_function":       {"function", []string{"statement_block"}, nil},
-		"interface_declaration": {"interface", []string{"object_type"}, []string{"property_signature", "method_signature", "call_signature"}},
+		"function_declaration":   {"function", []string{"statement_block"}, nil},
+		"class_declaration":      {"class", []string{"class_body"}, []string{"method_definition", "field_definition", "public_field_definition"}},
+		"method_definition":      {"method", []string{"statement_block"}, nil},
+		"arrow_function":         {"function", []string{"statement_block"}, nil},
+		"interface_declaration":  {"interface", []string{"object_type"}, []string{"property_signature", "method_signature", "call_signature"}},
 		"type_alias_declaration": {"type", []string{"object_type", "union_type", "intersection_type"}, nil},
-		"enum_declaration":     {"enum", []string{"enum_body"}, nil},
-		"export_statement":     {"export", nil, nil},
+		"enum_declaration":       {"enum", []string{"enum_body"}, nil},
+		"export_statement":       {"export", nil, nil},
 	},
 	"rust": {
 		"function_item":   {"function", []string{"block"}, nil},
@@ -108,25 +108,25 @@ var langNodeConfigs = map[string]map[string]nodeConfig{
 		"type_alias_item": {"type", nil, nil},
 	},
 	"java": {
-		"class_declaration":         {"class", []string{"class_body"}, []string{"method_declaration", "field_declaration", "constructor_declaration", "static_initializer"}},
-		"interface_declaration":     {"interface", []string{"interface_body"}, []string{"method_declaration", "constant_declaration"}},
-		"enum_declaration":          {"enum", []string{"enum_body_declarations"}, []string{"enum_constant", "method_declaration", "field_declaration"}},
-		"method_declaration":        {"method", []string{"block"}, nil},
-		"constructor_declaration":   {"constructor", []string{"block"}, nil},
+		"class_declaration":       {"class", []string{"class_body"}, []string{"method_declaration", "field_declaration", "constructor_declaration", "static_initializer"}},
+		"interface_declaration":   {"interface", []string{"interface_body"}, []string{"method_declaration", "constant_declaration"}},
+		"enum_declaration":        {"enum", []string{"enum_body_declarations"}, []string{"enum_constant", "method_declaration", "field_declaration"}},
+		"method_declaration":      {"method", []string{"block"}, nil},
+		"constructor_declaration": {"constructor", []string{"block"}, nil},
 	},
 	"c": {
-		"function_definition":  {"function", []string{"compound_statement"}, nil},
-		"struct_specifier":     {"struct", []string{"field_declaration_list"}, nil},
-		"enum_specifier":       {"enum", []string{"enumerator_list"}, nil},
+		"function_definition": {"function", []string{"compound_statement"}, nil},
+		"struct_specifier":    {"struct", []string{"field_declaration_list"}, nil},
+		"enum_specifier":      {"enum", []string{"enumerator_list"}, nil},
 	},
 	"cpp": {
-		"function_definition":    {"function", []string{"compound_statement"}, nil},
-		"class_specifier":        {"class", []string{"field_declaration_list"}, []string{"function_definition", "field_declaration", "declaration"}},
-		"struct_specifier":       {"struct", []string{"field_declaration_list"}, nil},
-		"enum_specifier":         {"enum", []string{"enumerator_list"}, nil},
-		"namespace_definition":   {"namespace", []string{"declaration_list"}, []string{"function_definition", "class_specifier", "struct_specifier"}},
-		"template_declaration":   {"template", nil, nil},
-		"lambda_expression":      {"lambda", []string{"compound_statement"}, nil},
+		"function_definition":  {"function", []string{"compound_statement"}, nil},
+		"class_specifier":      {"class", []string{"field_declaration_list"}, []string{"function_definition", "field_declaration", "declaration"}},
+		"struct_specifier":     {"struct", []string{"field_declaration_list"}, nil},
+		"enum_specifier":       {"enum", []string{"enumerator_list"}, nil},
+		"namespace_definition": {"namespace", []string{"declaration_list"}, []string{"function_definition", "class_specifier", "struct_specifier"}},
+		"template_declaration": {"template", nil, nil},
+		"lambda_expression":    {"lambda", []string{"compound_statement"}, nil},
 	},
 }
 
@@ -142,7 +142,7 @@ func getTSLang(lang string) *ts.Language {
 			"python":     ts.NewLanguage(unsafe.Pointer(tspython.Language())),
 			"javascript": ts.NewLanguage(unsafe.Pointer(tsjs.Language())),
 			"typescript": ts.NewLanguage(unsafe.Pointer(tstypescript.LanguageTypescript())),
-		"tsx":        ts.NewLanguage(unsafe.Pointer(tstypescript.LanguageTSX())),
+			"tsx":        ts.NewLanguage(unsafe.Pointer(tstypescript.LanguageTSX())),
 			"rust":       ts.NewLanguage(unsafe.Pointer(tsrust.Language())),
 			"java":       ts.NewLanguage(unsafe.Pointer(tsjava.Language())),
 			"c":          ts.NewLanguage(unsafe.Pointer(tsc.Language())),

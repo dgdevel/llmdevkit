@@ -38,12 +38,12 @@ type RetrieveResult struct {
 }
 
 type Indexer struct {
-	rootDir  string
-	config   map[string]map[string]string
-	state    State
-	stateMu  sync.RWMutex
-	ctx      context.Context
-	cancel   context.CancelFunc
+	rootDir string
+	config  map[string]map[string]string
+	state   State
+	stateMu sync.RWMutex
+	ctx     context.Context
+	cancel  context.CancelFunc
 
 	embedder *LlamaServer
 	reranker *LlamaServer
@@ -55,8 +55,8 @@ type Indexer struct {
 	rerankerEnabled bool
 	externalServers bool // if true, servers were provided externally and won't be stopped
 
-	manifest      map[string]string
-	manifestMu    sync.Mutex
+	manifest   map[string]string
+	manifestMu sync.Mutex
 
 	signatures []SignatureEntry
 

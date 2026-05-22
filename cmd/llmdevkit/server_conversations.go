@@ -246,8 +246,8 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 	}
 
 	s.appendJSONL(convID, "init", map[string]interface{}{
-		"agent":        conv.Agent,
-		"acp_session":  conv.ACPSessionID,
+		"agent":         conv.Agent,
+		"acp_session":   conv.ACPSessionID,
 		"system_prompt": conv.SystemPrompt,
 		"tools":         conv.Tools,
 	})

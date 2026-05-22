@@ -30,10 +30,10 @@ type ServerConfig struct {
 }
 
 type ToolConfig struct {
-	Rename      string                   `yaml:"rename,omitempty"`
-	Description string                   `yaml:"description,omitempty"`
+	Rename      string                    `yaml:"rename,omitempty"`
+	Description string                    `yaml:"description,omitempty"`
 	Arguments   map[string]ArgumentConfig `yaml:"arguments,omitempty"`
-	KeepAsIs    bool                     `yaml:"keep_as_is,omitempty"`
+	KeepAsIs    bool                      `yaml:"keep_as_is,omitempty"`
 }
 
 type ArgumentConfig struct {
@@ -291,7 +291,7 @@ func parseStdioCommand(s string) []string {
 		switch {
 		case r == '"':
 			inQuote = !inQuote
-		case r == '\'' :
+		case r == '\'':
 			inQuote = !inQuote
 		case r == ' ' && !inQuote:
 			if current.Len() > 0 {

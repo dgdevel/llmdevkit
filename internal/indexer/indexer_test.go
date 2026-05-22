@@ -37,8 +37,8 @@ func newTestIndexer(t *testing.T) (*Indexer, string) {
 	os.MkdirAll(cfgDir, 0755)
 	cfg.Write(map[string]map[string]string{
 		"llama": {
-			"search_count":    "50",
-			"result_count":    "10",
+			"search_count":     "50",
+			"result_count":     "10",
 			"reranker_enabled": "false",
 		},
 	}, cfg.FilePath(dir))

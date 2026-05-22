@@ -18,8 +18,8 @@ import (
 	"llmdevkit/internal/agents"
 	"llmdevkit/internal/debuglog"
 	"llmdevkit/internal/llms"
-	"llmdevkit/internal/runner"
 	"llmdevkit/internal/mcps"
+	"llmdevkit/internal/runner"
 
 	acp "github.com/ironpark/go-acp"
 	"github.com/mark3labs/mcp-go/client"
@@ -37,19 +37,19 @@ type sessionData struct {
 type ChatMessage = runner.ChatMessage
 
 type llmdevkitAgent struct {
-	llmCfg     *llms.Config
-	mcpCfg     *mcps.Config
-	agentCfg   *agents.Config
-	rootDir    string
-	store      *acp.MemoryStore[*sessionData]
+	llmCfg   *llms.Config
+	mcpCfg   *mcps.Config
+	agentCfg *agents.Config
+	rootDir  string
+	store    *acp.MemoryStore[*sessionData]
 
 	client acp.Client // set after connection init
 
 	// Cached devkit MCP client -- spawned once, reused across prompts.
-	devkitMu       sync.Mutex
-	devkitOnce     bool
-	devkitTools    []devkitToolEntry
-	_devkitClient  *client.Client
+	devkitMu      sync.Mutex
+	devkitOnce    bool
+	devkitTools   []devkitToolEntry
+	_devkitClient *client.Client
 }
 
 type devkitToolEntry struct {
@@ -214,7 +214,7 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 
 	promptCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	
+
 	// Store cancel func so Cancel() can abort this prompt
 	if sd, ok := a.store.Get(params.SessionID); ok {
 		sd.CancelFn = cancel
@@ -232,7 +232,7 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 			isContinuation = true
 		}
 	}
-	
+
 	// Build messages: prepend conversation history from session
 	var messages []runner.ChatMessage
 	if sd, ok := a.store.Get(params.SessionID); ok && len(sd.Messages) > 0 {
@@ -252,12 +252,12 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 		}
 	}
 	messages = append(messages, runner.ChatMessage{Role: "user", Content: promptText})
-	
+
 	// Map LLM tool-call IDs -> ACP ToolCallIDs so start/complete/fail
 	// use the same ID for each tool call.
 	var tcIDMu sync.Mutex
 	tcIDMap := make(map[string]acp.ToolCallID)
-	
+
 	runnerOpts := []runner.Option{
 		runner.WithRootDir(a.rootDir),
 		runner.WithTextCallback(func(text string) {
@@ -310,9 +310,9 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 		}),
 	}
 	if isContinuation {
-			runnerOpts = append(runnerOpts, runner.WithSkipConversationBegin())
-			runnerOpts = append(runnerOpts, runner.WithSkipTurnBegin())
-		}
+		runnerOpts = append(runnerOpts, runner.WithSkipConversationBegin())
+		runnerOpts = append(runnerOpts, runner.WithSkipTurnBegin())
+	}
 	r := runner.NewRunner(llmDef, agentCfg, registry, a.agentCfg, runnerOpts...)
 
 	fullMessages, result, err := r.RunPrompt(promptCtx, messages, promptText)
@@ -651,8 +651,8 @@ func (a *llmdevkitAgent) registerAskTools(registry *runner.ToolRegistry) {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"question":        map[string]any{"type": "string", "description": "The question to ask"},
-				"choices":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "List of choices"},
+				"question":         map[string]any{"type": "string", "description": "The question to ask"},
+				"choices":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "List of choices"},
 				"allow_open_ended": map[string]any{"type": "boolean", "description": "Whether to allow a custom text response", "default": false},
 			},
 			"required": []string{"question", "choices"},

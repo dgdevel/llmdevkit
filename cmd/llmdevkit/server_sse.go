@@ -414,7 +414,7 @@ func (s *Server) broadcastSSE(convID, event string, data interface{}) {
 	ev := SSEEvent{
 		ConversationID: convID,
 		Event:          event,
-		Data:          raw,
+		Data:           raw,
 	}
 	s.sseMu.RLock()
 	defer s.sseMu.RUnlock()
@@ -493,23 +493,23 @@ func (s *Server) loadConversations() error {
 			}
 			switch line.Type {
 			case "conversation_created":
-					var c Conversation
-					json.Unmarshal(line.Payload, &c)
-					if c.ID != "" {
-						conv.ID = c.ID
-					}
-					if c.Agent != "" {
-						conv.Agent = c.Agent
-					}
-					if c.LLM != "" {
-						conv.LLM = c.LLM
-					}
-					if c.SystemPrompt != "" {
-						conv.SystemPrompt = c.SystemPrompt
-					}
-					if c.Title != "" {
-						conv.Title = c.Title
-					}
+				var c Conversation
+				json.Unmarshal(line.Payload, &c)
+				if c.ID != "" {
+					conv.ID = c.ID
+				}
+				if c.Agent != "" {
+					conv.Agent = c.Agent
+				}
+				if c.LLM != "" {
+					conv.LLM = c.LLM
+				}
+				if c.SystemPrompt != "" {
+					conv.SystemPrompt = c.SystemPrompt
+				}
+				if c.Title != "" {
+					conv.Title = c.Title
+				}
 
 			case "init":
 				var data struct {
@@ -583,18 +583,18 @@ func (s *Server) loadConversations() error {
 				}
 
 			case "prompt_response":
-					// informational only
+				// informational only
 
-				case "llm_change":
-					var data struct {
-						LLM string `json:"llm"`
-					}
-					json.Unmarshal(line.Payload, &data)
-					if data.LLM != "" {
-						conv.LLM = data.LLM
-					}
+			case "llm_change":
+				var data struct {
+					LLM string `json:"llm"`
+				}
+				json.Unmarshal(line.Payload, &data)
+				if data.LLM != "" {
+					conv.LLM = data.LLM
+				}
 
-				case "token_stats":
+			case "token_stats":
 				var ts TokenStats
 				json.Unmarshal(line.Payload, &ts)
 				pendingTC = ts.TotalTokens

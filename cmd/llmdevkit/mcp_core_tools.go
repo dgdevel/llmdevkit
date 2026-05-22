@@ -39,8 +39,7 @@ func addCoreTools(s *server.MCPServer) {
 		mcp.WithString("content",
 			mcp.Required(),
 		),
-		mcp.WithBoolean("overwrite_existing",
-		),
+		mcp.WithBoolean("overwrite_existing"),
 	), tools.CreateHandler)
 
 	s.AddTool(mcp.NewTool("mv",

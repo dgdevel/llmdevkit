@@ -303,7 +303,7 @@ func TestRecordingClient_PermissionHandler(t *testing.T) {
 	ctx := context.Background()
 	resp, err := rc.RequestPermission(ctx, &acp.RequestPermissionRequest{
 		SessionID: "s1",
-		ToolCall: acp.ToolCallUpdate{ToolCallID: "tc1", Title: "rm file"},
+		ToolCall:  acp.ToolCallUpdate{ToolCallID: "tc1", Title: "rm file"},
 	})
 	if err != nil {
 		t.Fatalf("RequestPermission failed: %v", err)
@@ -1107,5 +1107,5 @@ func (a *panickingAgent) Cancel(ctx context.Context, params *acp.CancelNotificat
 	return nil
 }
 
-func pointerToToolKind(k acp.ToolKind) *acp.ToolKind    { return &k }
+func pointerToToolKind(k acp.ToolKind) *acp.ToolKind                   { return &k }
 func pointerToToolCallStatus(s acp.ToolCallStatus) *acp.ToolCallStatus { return &s }

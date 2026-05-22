@@ -13,12 +13,12 @@ import (
 )
 
 var (
-	mu       sync.Mutex
-	loggers  map[string]*log.Logger
-	active   bool
-	rootDir  string
-	llmFile  *os.File
-	llmMu    sync.Mutex
+	mu      sync.Mutex
+	loggers map[string]*log.Logger
+	active  bool
+	rootDir string
+	llmFile *os.File
+	llmMu   sync.Mutex
 )
 
 func init() {

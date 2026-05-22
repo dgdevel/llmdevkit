@@ -45,7 +45,7 @@ type MockLLM struct {
 	steps  []MockLLMStep
 	cursor int
 
-	callLog          []mockLLMCallLog
+	callLog           []mockLLMCallLog
 	toolCallIDCounter int64
 }
 
@@ -56,10 +56,10 @@ type mockLLMCallLog struct {
 }
 
 type mockLLMMessage struct {
-	Role       string          `json:"role"`
-	Content    string          `json:"content,omitempty"`
+	Role       string            `json:"role"`
+	Content    string            `json:"content,omitempty"`
 	ToolCalls  []mockLLMToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string          `json:"tool_call_id,omitempty"`
+	ToolCallID string            `json:"tool_call_id,omitempty"`
 }
 
 type mockLLMToolCall struct {
@@ -73,9 +73,9 @@ type mockLLMToolCall struct {
 
 type mockLLMChoice struct {
 	Message struct {
-		Role      string              `json:"role"`
-		Content   string              `json:"content"`
-		ToolCalls []mockLLMToolCall   `json:"tool_calls"`
+		Role      string            `json:"role"`
+		Content   string            `json:"content"`
+		ToolCalls []mockLLMToolCall `json:"tool_calls"`
 	} `json:"message"`
 	FinishReason string `json:"finish_reason"`
 }
@@ -236,7 +236,7 @@ func (m *MockLLM) handleChatCompletions(w http.ResponseWriter, r *http.Request) 
 		m.mu.Unlock()
 		writeMockResponse(w, mockLLMResponse{
 			Choices: []mockLLMChoice{{
-				Message:     struct {
+				Message: struct {
 					Role      string            `json:"role"`
 					Content   string            `json:"content"`
 					ToolCalls []mockLLMToolCall `json:"tool_calls"`
@@ -471,10 +471,10 @@ func (p *testPipe) Close() {
 // ---------------------------------------------------------------------------
 
 type testLLMAgent struct {
-	mock     *MockLLM
-	tools    map[string]func(ctx context.Context, args json.RawMessage) (string, error)
-	client   acp.Client
-	toolSeq  int64
+	mock    *MockLLM
+	tools   map[string]func(ctx context.Context, args json.RawMessage) (string, error)
+	client  acp.Client
+	toolSeq int64
 }
 
 func (a *testLLMAgent) Initialize(ctx context.Context, params *acp.InitializeRequest) (*acp.InitializeResponse, error) {
@@ -603,17 +603,17 @@ func (a *testLLMAgent) RegisterTool(name string, fn func(ctx context.Context, ar
 
 // runnerMsg mirrors the runner.ChatMessage shape (avoids import coupling).
 type runnerMsg struct {
-	Role       string                `json:"role"`
-	Content    string                `json:"content,omitempty"`
-	ToolCalls  []mockLLMToolCall     `json:"tool_calls,omitempty"`
-	ToolCallID string                `json:"tool_call_id,omitempty"`
+	Role       string            `json:"role"`
+	Content    string            `json:"content,omitempty"`
+	ToolCalls  []mockLLMToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string            `json:"tool_call_id,omitempty"`
 }
 
 // CallLLM sends a request to the mock LLM server.
 func (m *MockLLM) CallLLM(ctx context.Context, messages []runnerMsg) (*mockLLMResponse, error) {
 	type req struct {
-		Model    string       `json:"model"`
-		Messages []runnerMsg  `json:"messages"`
+		Model    string      `json:"model"`
+		Messages []runnerMsg `json:"messages"`
 	}
 	body, err := json.Marshal(req{Model: "mock-model", Messages: messages})
 	if err != nil {

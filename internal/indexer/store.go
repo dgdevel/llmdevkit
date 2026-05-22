@@ -19,13 +19,13 @@ type Store struct {
 }
 
 type SearchResult struct {
-	FilePath  string
-	LineStart int
-	LineEnd   int
-	Signature string
-	Language  string
-	ChunkType string
-	Content   string
+	FilePath   string
+	LineStart  int
+	LineEnd    int
+	Signature  string
+	Language   string
+	ChunkType  string
+	Content    string
 	Similarity float64
 }
 

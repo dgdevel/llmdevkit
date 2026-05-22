@@ -1,7 +1,7 @@
 package main
 
 import (
-		"context"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -54,8 +54,8 @@ func newTestServerWithConfigs(t *testing.T) *Server {
 	t.Helper()
 	tmpDir := t.TempDir()
 	srv := &Server{
-		rootDir:    tmpDir,
-		agentCfg:   &agents.Config{Agents: []agents.AgentConfig{
+		rootDir: tmpDir,
+		agentCfg: &agents.Config{Agents: []agents.AgentConfig{
 			{Name: "code", LLM: "gpt4", SystemPrompt: "You are a coding assistant.", Tools: "devkit"},
 			{Name: "chat", LLM: "claude", SystemPrompt: "You are a chat assistant.", Tools: "ask"},
 		}},
@@ -319,7 +319,7 @@ func TestServer_Conversations_Create(t *testing.T) {
 
 	var conv Conversation
 	postJSON(t, base+"/api/conversations", map[string]string{
-		"agent":        "code",
+		"agent":         "code",
 		"system_prompt": "Be helpful",
 	}, &conv)
 
@@ -828,10 +828,10 @@ func TestServer_SideChannel_AskOpenEnded(t *testing.T) {
 
 	// Create an initialized conversation
 	conv := &Conversation{
-		ID:           "conv_ask",
-		Agent:        "test",
-		Initialized:  true,
-		Messages:     []BubbleMessage{},
+		ID:          "conv_ask",
+		Agent:       "test",
+		Initialized: true,
+		Messages:    []BubbleMessage{},
 	}
 	srv.addConversation(conv)
 

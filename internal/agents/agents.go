@@ -15,10 +15,10 @@ type Config struct {
 }
 
 type AgentConfig struct {
-	Name         string                       `yaml:"name"`
-	LLM          string                       `yaml:"llm"`
-	Tools        string                       `yaml:"tools"`
-	SystemPrompt string                       `yaml:"system_prompt"`
+	Name         string                                  `yaml:"name"`
+	LLM          string                                  `yaml:"llm"`
+	Tools        string                                  `yaml:"tools"`
+	SystemPrompt string                                  `yaml:"system_prompt"`
 	Hooks        map[string]map[string]map[string]string `yaml:"hooks,omitempty"`
 }
 

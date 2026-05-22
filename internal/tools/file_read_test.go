@@ -331,7 +331,6 @@ func TestFileRead1Indexed(t *testing.T) {
 	}
 }
 
-
 func TestFileReadDashRange(t *testing.T) {
 	setupTestRoot(t)
 

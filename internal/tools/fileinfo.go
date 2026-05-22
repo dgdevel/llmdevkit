@@ -8,18 +8,18 @@ import (
 // formatEntrySize formats bytes: <500b -> "Xb", <500Kb -> "XKb", >=500Kb -> "XMb".
 func formatEntrySize(b int64) string {
 	const (
-			KB = 1024
-			MB = KB * 1024
-		)
-		const threshold = 500
-		switch {
-		case b >= threshold*MB:
-			return fmt.Sprintf("%.0fMb", float64(b)/float64(MB))
-		case b >= threshold*KB:
-			return fmt.Sprintf("%.0fKb", float64(b)/float64(KB))
-		default:
-			return fmt.Sprintf("%db", b)
-		}
+		KB = 1024
+		MB = KB * 1024
+	)
+	const threshold = 500
+	switch {
+	case b >= threshold*MB:
+		return fmt.Sprintf("%.0fMb", float64(b)/float64(MB))
+	case b >= threshold*KB:
+		return fmt.Sprintf("%.0fKb", float64(b)/float64(KB))
+	default:
+		return fmt.Sprintf("%db", b)
+	}
 }
 
 // isBinary detects binary content by checking for a NUL byte in the first 8KB.

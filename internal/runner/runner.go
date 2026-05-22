@@ -88,14 +88,14 @@ done:
 
 // Runner executes an agent's LLM loop.
 type Runner struct {
-	llm          *llms.LLMConfig
-	agent        *agents.AgentConfig
-	registry     *ToolRegistry
-	allAgents    *agents.Config // for agents_available / agent_invoke
-	rootDir      string         // project directory, for reading AGENTS.md
+	llm           *llms.LLMConfig
+	agent         *agents.AgentConfig
+	registry      *ToolRegistry
+	allAgents     *agents.Config // for agents_available / agent_invoke
+	rootDir       string         // project directory, for reading AGENTS.md
 	skipConvBegin bool
-		skipTurnBegin bool
-		onText        func(text string)
+	skipTurnBegin bool
+	onText        func(text string)
 	onToolStart   func(id, title, kind string, arguments json.RawMessage)
 	onToolUpdate  func(id, status, content string)
 	onTokenStats  func(TokenStats)
@@ -146,10 +146,10 @@ func NewRunner(llmCfg *llms.LLMConfig, agentCfg *agents.AgentConfig, registry *T
 
 // ChatMessage represents a message in the OpenAI chat format.
 type ChatMessage struct {
-	Role       string          `json:"role"`
-	Content    string          `json:"content,omitempty"`
-	ToolCalls  []toolCall      `json:"tool_calls,omitempty"`
-	ToolCallID string          `json:"tool_call_id,omitempty"`
+	Role       string     `json:"role"`
+	Content    string     `json:"content,omitempty"`
+	ToolCalls  []toolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
 }
 
 type toolCall struct {
@@ -162,11 +162,11 @@ type toolCall struct {
 }
 
 type chatRequest struct {
-	Model       string         `json:"model"`
-	Messages    []ChatMessage  `json:"messages"`
+	Model       string           `json:"model"`
+	Messages    []ChatMessage    `json:"messages"`
 	Tools       []map[string]any `json:"tools,omitempty"`
-	MaxTokens   int            `json:"max_tokens,omitempty"`
-	CachePrompt bool           `json:"cache_prompt"`
+	MaxTokens   int              `json:"max_tokens,omitempty"`
+	CachePrompt bool             `json:"cache_prompt"`
 }
 
 type chatResponse struct {
@@ -208,31 +208,31 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 	// position is stable across turns (important for KV-cache/checkpoint reuse).
 
 	// Execute on_conversation_begin hooks (only on first turn).
-		// Placed right after the first user prompt.
-		if !r.skipConvBegin && len(messages) <= 1 {
-			hookCtx, err := r.executeHooks(ctx, agents.HookConversationBegin, userPrompt)
-			if err != nil {
-				return nil, "", fmt.Errorf("hook conversation_begin: %w", err)
-			}
-			if hookCtx != "" {
-				messages = append(messages, ChatMessage{Role: "system", Content: hookCtx})
-			}
-		}
-	
-		// Execute on_turn_begin hooks.
-		// Placed right after the user prompt that starts this turn.
-		// Skip on continuation to keep message sequence identical for KV-cache reuse.
-		var hookCtx string
-		if !r.skipTurnBegin {
-			var err error
-			hookCtx, err = r.executeHooks(ctx, agents.HookTurnBegin, userPrompt)
-			if err != nil {
-				return nil, "", fmt.Errorf("hook turn_begin: %w", err)
-			}
+	// Placed right after the first user prompt.
+	if !r.skipConvBegin && len(messages) <= 1 {
+		hookCtx, err := r.executeHooks(ctx, agents.HookConversationBegin, userPrompt)
+		if err != nil {
+			return nil, "", fmt.Errorf("hook conversation_begin: %w", err)
 		}
 		if hookCtx != "" {
 			messages = append(messages, ChatMessage{Role: "system", Content: hookCtx})
 		}
+	}
+
+	// Execute on_turn_begin hooks.
+	// Placed right after the user prompt that starts this turn.
+	// Skip on continuation to keep message sequence identical for KV-cache reuse.
+	var hookCtx string
+	if !r.skipTurnBegin {
+		var err error
+		hookCtx, err = r.executeHooks(ctx, agents.HookTurnBegin, userPrompt)
+		if err != nil {
+			return nil, "", fmt.Errorf("hook turn_begin: %w", err)
+		}
+	}
+	if hookCtx != "" {
+		messages = append(messages, ChatMessage{Role: "system", Content: hookCtx})
+	}
 
 	model := r.llm.Model
 	if model == "" {
@@ -240,11 +240,11 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 	}
 
 	reqBody := chatRequest{
-			Model:       model,
-			Messages:    messages,
-			Tools:       r.registry.ListForOpenAI(),
-			CachePrompt: true,
-		}
+		Model:       model,
+		Messages:    messages,
+		Tools:       r.registry.ListForOpenAI(),
+		CachePrompt: true,
+	}
 
 	// Build ephemeral system message (system prompt + AGENTS.md).
 	// This is prepended for every LLM call but never included in the
