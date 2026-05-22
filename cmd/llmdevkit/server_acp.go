@@ -8,13 +8,25 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
 	"unsafe"
 
+	"llmdevkit/internal/tools"
+
 	acp "github.com/ironpark/go-acp"
 )
+
+// fileChangingTools is the set of tool names that modify files.
+var fileChangingTools = map[string]bool{
+	"file_create": true,
+	"edit":        true,
+	"sed":         true,
+	"rm":          true,
+	"mv":          true,
+}
 
 // -- ACP subprocess management -----------------------------------------------
 
@@ -225,6 +237,9 @@ func (c *acpClientHandler) handleSessionUpdate(convID string, u acp.SessionUpdat
 			}
 			toolName := tcu.Title
 			if toolName == "" {
+				toolName = c.server.toolNameForCallID(convID, string(tcu.ToolCallID))
+			}
+			if toolName == "" {
 				toolName = string(tcu.ToolCallID)
 			}
 			c.server.addBubble(convID, BubbleMessage{Type: "tool_response", Name: toolName, ID: string(tcu.ToolCallID), Content: content})
@@ -413,7 +428,10 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 	if finalTokenCount > 0 {
 		s.broadcastSSE(convID, "token_stats", TokenStats{TotalTokens: finalTokenCount})
 	}
-
+	
+	// Emit file changes recap after LLM finishes
+	s.emitFileChangesRecap(convID)
+	
 	s.setConvRunning(convID, false)
 
 	// Dequeue next prompt if available
@@ -477,10 +495,242 @@ func (s *Server) addBubble(convID string, b BubbleMessage) {
 	}
 
 	conv.Messages = append(conv.Messages, b)
+	
+	// Track file changes from tool responses
+	if b.Type == "tool_response" && fileChangingTools[b.Name] {
+		s.trackFileChangeLocked(conv, b)
+	}
+	
 	s.mu.Unlock()
 
 	s.broadcastSSE(convID, "session_update", b)
 	s.appendJSONL(convID, "bubble", b)
+	}
+	
+	// toolNameForCallID looks up the tool name from the tool_request bubble matching
+	// the given toolCallID. Returns empty string if not found.
+	func (s *Server) toolNameForCallID(convID, toolCallID string) string {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		conv, ok := s.convs[convID]
+		if !ok {
+			return ""
+		}
+		for i := len(conv.Messages) - 1; i >= 0; i-- {
+			m := conv.Messages[i]
+			if m.Type != "tool_request" || m.Name == "" {
+				continue
+			}
+			var parsed map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(m.Content), &parsed); err != nil {
+				continue
+			}
+			var tcID string
+			if id, ok := parsed["toolCallId"]; ok {
+				json.Unmarshal(id, &tcID)
+			}
+			if tcID == toolCallID {
+				return m.Name
+			}
+		}
+		return ""
+	}
+	
+	// trackFileChangeLocked records a file change from a tool_response.
+// Must be called with s.mu held.
+func (s *Server) trackFileChangeLocked(conv *Conversation, resp BubbleMessage) {
+    // Find the matching tool_request by scanning backwards.
+    // First try matching by both Name and toolCallId, then fallback to toolCallId only.
+    for i := len(conv.Messages) - 1; i >= 0; i-- {
+        m := &conv.Messages[i]
+        if m.Type != "tool_request" {
+            continue
+        }
+        var parsed map[string]json.RawMessage
+        if err := json.Unmarshal([]byte(m.Content), &parsed); err != nil {
+            continue
+        }
+        // Match by tool_call_id from response ID
+        var tcID string
+        if id, ok := parsed["toolCallId"]; ok {
+            json.Unmarshal(id, &tcID)
+        }
+        if tcID != "" && tcID != resp.ID {
+            continue
+        }
+        // Extract arguments from rawInput
+        rawInput, hasInput := parsed["rawInput"]
+        if !hasInput {
+            continue
+        }
+        fc := FileChange{ToolName: resp.Name, Response: resp.Content}
+        var args map[string]json.RawMessage
+        if err := json.Unmarshal(rawInput, &args); err != nil {
+            continue
+        }
+        switch resp.Name {
+        case "file_create":
+            if p, ok := args["path"]; ok {
+                json.Unmarshal(p, &fc.Path)
+            }
+        case "edit":
+            if p, ok := args["path"]; ok {
+                json.Unmarshal(p, &fc.Path)
+            }
+            var orig, mod string
+            if o, ok := args["original_window"]; ok {
+                json.Unmarshal(o, &orig)
+            }
+            if m2, ok := args["modified_window"]; ok {
+                json.Unmarshal(m2, &mod)
+            }
+            origLines := len(strings.Split(strings.TrimRight(orig, "\n"), "\n"))
+            modLines := len(strings.Split(strings.TrimRight(mod, "\n"), "\n"))
+            fc.DiffLines = origLines + modLines
+        case "sed":
+            if p, ok := args["pathspec"]; ok {
+                json.Unmarshal(p, &fc.Path)
+            }
+        case "rm":
+            if p, ok := args["path"]; ok {
+                json.Unmarshal(p, &fc.Path)
+            }
+        case "mv":
+            if p, ok := args["source"]; ok {
+                json.Unmarshal(p, &fc.Path)
+            }
+            if d, ok := args["dest"]; ok {
+                json.Unmarshal(d, &fc.DestPath)
+            }
+        }
+        if fc.Path != "" {
+            conv.FileChanges = append(conv.FileChanges, fc)
+        }
+        break
+    }
+}
+
+// emitFileChangesRecap generates and emits a file_changes bubble if any
+// file changes were tracked during the prompt run.
+func (s *Server) emitFileChangesRecap(convID string) {
+    s.mu.Lock()
+    conv, ok := s.convs[convID]
+    if !ok || len(conv.FileChanges) == 0 {
+        if ok {
+            conv.FileChanges = nil
+        }
+        s.mu.Unlock()
+        return
+    }
+    changes := conv.FileChanges
+    conv.FileChanges = nil
+    s.mu.Unlock()
+
+    var recapLines []string
+    for _, fc := range changes {
+        relPath := s.relPath(fc.Path)
+        switch fc.ToolName {
+        case "file_create":
+            size, lineCount := s.fileSizeAndLines(relPath)
+            recapLines = append(recapLines, fmt.Sprintf("NEW %s, %d, %s", size, lineCount, relPath))
+        case "edit":
+            size, _ := s.fileSizeAndLines(relPath)
+            recapLines = append(recapLines, fmt.Sprintf("EDIT %s, %d, %s", size, fc.DiffLines, relPath))
+        case "sed":
+            recapLines = append(recapLines, s.sedRecapLines(fc, relPath)...)
+        case "rm":
+            recapLines = append(recapLines, fmt.Sprintf("DEL %s", relPath))
+        case "mv":
+            destRel := s.relPath(fc.DestPath)
+            recapLines = append(recapLines, fmt.Sprintf("DEL %s", relPath))
+            size, lineCount := s.fileSizeAndLines(destRel)
+            recapLines = append(recapLines, fmt.Sprintf("NEW %s, %d, %s", size, lineCount, destRel))
+        }
+    }
+
+    if len(recapLines) == 0 {
+        return
+    }
+
+    content := strings.Join(recapLines, "\n")
+    s.addBubble(convID, BubbleMessage{
+        Type:      "file_changes",
+        Content:   content,
+        Timestamp: nowISO(),
+    })
+}
+
+// sedRecapLines generates EDIT recap lines for a sed operation by expanding the glob.
+func (s *Server) sedRecapLines(fc FileChange, pathspec string) []string {
+    var result []string
+    filepath.WalkDir(s.rootDir, func(path string, d os.DirEntry, err error) error {
+        if err != nil || d.IsDir() {
+            return nil
+        }
+        if tools.IsConfigPath(path) || tools.IsIgnored(path) {
+            return nil
+        }
+        rel, err := filepath.Rel(s.rootDir, path)
+        if err != nil {
+            return nil
+        }
+        if tools.GlobMatch(pathspec, rel) {
+            size, _ := s.fileSizeAndLines(rel)
+            result = append(result, fmt.Sprintf("EDIT %s, %d, %s", size, fc.DiffLines, rel))
+        }
+        return nil
+    })
+    if len(result) == 0 {
+        // Fallback: report pathspec as-is
+        size, _ := s.fileSizeAndLines(pathspec)
+        result = append(result, fmt.Sprintf("EDIT %s, %d, %s", size, fc.DiffLines, pathspec))
+    }
+    return result
+}
+
+// relPath makes a path relative to rootDir, or returns it unchanged if already relative.
+func (s *Server) relPath(p string) string {
+    abs, err := filepath.Abs(p)
+    if err != nil {
+        return p
+    }
+    rel, err := filepath.Rel(s.rootDir, abs)
+    if err != nil {
+        return p
+    }
+    return rel
+}
+
+// fileSizeAndLines returns a human-readable size string and line count for a file.
+func (s *Server) fileSizeAndLines(relPath string) (string, int) {
+    absPath := filepath.Join(s.rootDir, relPath)
+    fi, err := os.Stat(absPath)
+    if err != nil {
+        return "-", 0
+    }
+    var lineCount int
+    data, err := os.ReadFile(absPath)
+    if err == nil {
+        lineCount = len(bytes.Split(data, []byte("\n")))
+    }
+    size := formatFileSize(fi.Size())
+    return size, lineCount
+}
+
+// formatFileSize returns a human-readable file size.
+func formatFileSize(size int64) string {
+    const (
+        KB = 1024
+        MB = KB * 1024
+    )
+    switch {
+    case size >= MB:
+        return fmt.Sprintf("%.1fMB", float64(size)/float64(MB))
+    case size >= KB:
+        return fmt.Sprintf("%.1fKB", float64(size)/float64(KB))
+    default:
+        return fmt.Sprintf("%dB", size)
+    }
 }
 
 // setConvRunning updates the running state for a conversation and broadcasts it.

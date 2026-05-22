@@ -99,6 +99,17 @@ A message in the conversation. All chat content flows through this type.
 | `ask_exec`             | Command execution authorization request        |
 | `ask_multiple_choice`  | Multiple choice question to user               |
 | `error`                | Error message                                  |
+| `file_changes`         | Summary of files created/edited/deleted        |
+
+**`file_changes` content format:** Each line in `content` starts with a prefix indicating the change type, followed by the file path:
+
+```
+NEW <path>
+EDIT <path>
+DEL <path>
+```
+
+Multiple files appear on separate lines. Empty lines are ignored.
 
 ---
 

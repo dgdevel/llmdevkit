@@ -100,12 +100,50 @@ export function renderBubble(m) {
     case 'ask_open_ended': return renderAskOpenEnded(m);
     case 'ask_exec': return renderAskExec(m);
     case 'ask_multiple_choice': return renderAskMultipleChoice(m);
+    case 'file_changes': return renderFileChanges(m);
     case 'error': return bubbleHTML('error', 'Error', esc(m.content), false, true, briefText(m.content), m.timestamp);
     default: return bubbleHTML('system', m.type, esc(m.content||''), false, true, briefText(m.content), m.timestamp);
   }
-}
-
-function renderToolRequest(m) {
+  }
+  
+  function renderFileChanges(m) {
+  const lines = (m.content || '').split('\n').filter(l => l.trim());
+  if (lines.length === 0) return '';
+  
+  let newCount = 0, editCount = 0, delCount = 0;
+  const rowHTML = lines.map(line => {
+    let badge = '', path = '', cls = 'text-body-secondary';
+    if (line.startsWith('NEW ')) {
+      newCount++;
+      badge = '<span class="badge text-bg-success me-1">NEW</span>';
+      path = line.substring(4);
+      cls = 'text-success';
+    } else if (line.startsWith('EDIT ')) {
+      editCount++;
+      badge = '<span class="badge text-bg-warning me-1">EDIT</span>';
+      path = line.substring(5);
+      cls = 'text-warning';
+    } else if (line.startsWith('DEL ')) {
+      delCount++;
+      badge = '<span class="badge text-bg-danger me-1">DEL</span>';
+      path = line.substring(4);
+      cls = 'text-danger';
+    } else {
+      path = line;
+    }
+    return `<div class="font-monospace small ${cls}">${badge}${esc(path)}</div>`;
+  }).join('');
+  
+  const parts = [];
+  if (newCount) parts.push(`${newCount} new`);
+  if (editCount) parts.push(`${editCount} edited`);
+  if (delCount) parts.push(`${delCount} deleted`);
+  const brief = parts.join(', ');
+  
+  return bubbleHTML('file-changes', 'File Changes', rowHTML, true, false, brief, m.timestamp);
+  }
+  
+  function renderToolRequest(m) {
   let title = esc(m.name || 'Tool');
   let argsHTML = '';
   let parsed = null;

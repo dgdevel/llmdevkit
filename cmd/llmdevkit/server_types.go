@@ -75,12 +75,24 @@ type Conversation struct {
 	LastPromptTokens  int `json:"last_prompt_tokens,omitempty"`
 
 	PromptCancel context.CancelFunc `json:"-"` // cancel the running prompt context
-}
-
-type jsonlLine struct {
+	
+	// File change tracking during a prompt run (transient, not persisted)
+	FileChanges []FileChange `json:"-"`
+	}
+	
+	// FileChange tracks a single file modification during a prompt run.
+	type FileChange struct {
+	ToolName  string `json:"tool_name"`
+	Path      string `json:"path"`
+	DestPath  string `json:"dest_path,omitempty"` // for mv
+	DiffLines int    `json:"diff_lines,omitempty"`
+	Response  string `json:"-"` // tool response content for parsing
+	}
+	
+	type jsonlLine struct {
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload"`
-}
+	}
 
 // -- Server state ------------------------------------------------------------
 

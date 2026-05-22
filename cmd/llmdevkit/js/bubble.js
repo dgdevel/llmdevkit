@@ -30,6 +30,7 @@ export function bubbleHTML(cls, label, content, raw, collapsed, brief, timestamp
     case 'thinking':  cardCls += ' border-secondary border-dashed bg-transparent'; break;
     case 'tool-req':  cardCls += ' border-start border-warning'; maxW = '90%'; break;
     case 'tool-resp': cardCls += ' border-start border-success'; maxW = '90%'; break;
+    case 'file-changes': cardCls += ' border-dark'; align = 'align-self-center'; maxW = '90%'; break;
     case 'error':     cardCls += ' border-danger text-danger';   align = 'align-self-center'; maxW = '90%'; break;
   }
 
