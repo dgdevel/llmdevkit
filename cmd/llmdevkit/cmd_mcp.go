@@ -276,13 +276,6 @@ func runMCP() {
 		),
 	), tools.OnlineSearchHandler)
 
-	s.AddTool(mcp.NewTool("examples",
-		mcp.WithDescription("Show usage examples for a tool"),
-		mcp.WithString("tool_name",
-			mcp.Required(),
-		),
-	), tools.ExamplesHandler)
-
 	s.AddTool(mcp.NewTool("available_commands",
 		mcp.WithDescription("List available commands"),
 	), tools.AvailableCommandsHandler)
