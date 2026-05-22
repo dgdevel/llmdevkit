@@ -5,6 +5,7 @@ LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
 compile:
 	scripts/check-non-ascii.sh
+	go fmt ./...
 	CGO_ENABLED=1 go build $(LDFLAGS) -o llmdevkit ./cmd/llmdevkit/
 
 dist: compile
