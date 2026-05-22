@@ -6,6 +6,7 @@ LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 compile:
 	scripts/check-non-ascii.sh
 	go fmt ./...
+	bun run js-beautify cmd/llmdevkit/js/*.js
 	CGO_ENABLED=1 go build $(LDFLAGS) -o llmdevkit ./cmd/llmdevkit/
 
 dist: compile

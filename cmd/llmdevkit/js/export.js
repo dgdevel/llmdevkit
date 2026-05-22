@@ -1,51 +1,55 @@
-import { S } from './state.js';
-import { lazyContent } from './bubble.js';
+import {
+    S
+} from './state.js';
+import {
+    lazyContent
+} from './bubble.js';
 
 // Export all lazy content into the DOM so it's visible in the snapshot
 function expandAllLazy() {
-  const messages = document.getElementById('messages');
-  if (!messages) return;
-  // Populate any remaining lazy content
-  messages.querySelectorAll('.collapse').forEach(collapseEl => {
-    const id = collapseEl.id;
-    const html = lazyContent.get(id);
-    if (html !== undefined) {
-      const contentEl = collapseEl.querySelector('.bubble-content');
-      if (contentEl && !contentEl.innerHTML.trim()) {
-        contentEl.innerHTML = html;
-        lazyContent.delete(id);
-      }
-    }
-  });
-  // Expand all collapsed elements: add 'show' class and set aria-expanded
-  messages.querySelectorAll('.collapse:not(.show)').forEach(collapseEl => {
-    collapseEl.classList.add('show');
-    const toggle = collapseEl.getAttribute('data-bs-target');
-    if (toggle) {
-      const target = document.querySelector(toggle);
-      if (target) target.setAttribute('aria-expanded', 'true');
-    }
-  });
+    const messages = document.getElementById('messages');
+    if (!messages) return;
+    // Populate any remaining lazy content
+    messages.querySelectorAll('.collapse').forEach(collapseEl => {
+        const id = collapseEl.id;
+        const html = lazyContent.get(id);
+        if (html !== undefined) {
+            const contentEl = collapseEl.querySelector('.bubble-content');
+            if (contentEl && !contentEl.innerHTML.trim()) {
+                contentEl.innerHTML = html;
+                lazyContent.delete(id);
+            }
+        }
+    });
+    // Expand all collapsed elements: add 'show' class and set aria-expanded
+    messages.querySelectorAll('.collapse:not(.show)').forEach(collapseEl => {
+        collapseEl.classList.add('show');
+        const toggle = collapseEl.getAttribute('data-bs-target');
+        if (toggle) {
+            const target = document.querySelector(toggle);
+            if (target) target.setAttribute('aria-expanded', 'true');
+        }
+    });
 }
 
 export function exportConversation() {
-  const conv = S.conversations.find(c => c.id === S.activeConvId);
-  if (!conv) return;
+    const conv = S.conversations.find(c => c.id === S.activeConvId);
+    if (!conv) return;
 
-  // Step 1: expand all lazy content
-  expandAllLazy();
+    // Step 1: expand all lazy content
+    expandAllLazy();
 
-  // Step 2: capture messages HTML
-  const messagesEl = document.getElementById('messages');
-  if (!messagesEl) return;
-  const messagesHTML = messagesEl.innerHTML;
+    // Step 2: capture messages HTML
+    const messagesEl = document.getElementById('messages');
+    if (!messagesEl) return;
+    const messagesHTML = messagesEl.innerHTML;
 
-  // Step 3: build standalone HTML
-  const cssLink = `<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">`;
-  const bootstrapJS = `<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvX9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"><\/script>`;
-  const markedJS = `<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>`;
+    // Step 3: build standalone HTML
+    const cssLink = `<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">`;
+    const bootstrapJS = `<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvX9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"><\/script>`;
+    const markedJS = `<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>`;
 
-  const standaloneHTML = `<!DOCTYPE html>
+    const standaloneHTML = `<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -95,19 +99,21 @@ document.querySelectorAll('.bubble-content').forEach(el => {
 </body>
 </html>`;
 
-  // Step 4: download
-  const blob = new Blob([standaloneHTML], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `llmdevkit-${conv.id}.html`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+    // Step 4: download
+    const blob = new Blob([standaloneHTML], {
+        type: 'text/html'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `llmdevkit-${conv.id}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 function esc(s) {
-  if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    if (!s) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
