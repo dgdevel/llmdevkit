@@ -81,7 +81,7 @@ func TestMockLLM_MultiStepSequence(t *testing.T) {
 
 	ctx := context.Background()
 
-	// First call → tool call
+	// First call -> tool call
 	resp1, err := mock.CallLLM(ctx, []runnerMsg{{Role: "user", Content: "read file"}})
 	if err != nil {
 		t.Fatalf("Call 1 failed: %v", err)
@@ -90,7 +90,7 @@ func TestMockLLM_MultiStepSequence(t *testing.T) {
 		t.Fatal("expected tool call in first response")
 	}
 
-	// Second call → text
+	// Second call -> text
 	resp2, err := mock.CallLLM(ctx, []runnerMsg{{Role: "user", Content: "read file"}, {Role: "tool", Content: "file content", ToolCallID: "call_1"}})
 	if err != nil {
 		t.Fatalf("Call 2 failed: %v", err)
@@ -131,7 +131,7 @@ func TestMockLLM_ExhaustedSteps(t *testing.T) {
 	ctx := context.Background()
 	_, _ = mock.CallLLM(ctx, []runnerMsg{{Role: "user", Content: "hi"}})
 
-	// Second call with no more steps → default response
+	// Second call with no more steps -> default response
 	resp, err := mock.CallLLM(ctx, []runnerMsg{{Role: "user", Content: "hi again"}})
 	if err != nil {
 		t.Fatalf("CallLLM failed: %v", err)
@@ -448,7 +448,7 @@ func TestE2E_ToolCallLoop(t *testing.T) {
 	h := NewTestHarness(t)
 	defer h.Close()
 
-	// Script: tool call → tool result → final text
+	// Script: tool call -> tool result -> final text
 	h.Mock.EnqueueToolCall("call_1", "read_file", `{"path":"/tmp/test.txt"}`)
 	h.Mock.EnqueueText("The file contains: mock file content for /tmp/test.txt")
 

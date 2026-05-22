@@ -1,4 +1,4 @@
-// sw.js — Service Worker for browser notifications
+// sw.js -- Service Worker for browser notifications
 // Polls /api/notifications and shows browser notifications for ask-tool events and conversation completions.
 // Robust against server restarts: uses exponential backoff on failures, auto-recovers when server returns.
 
@@ -18,11 +18,11 @@ self.addEventListener('message', (event) => {
   }
   if (event.data?.type === 'test') {
     setTimeout(() => {
-      self.registration.showNotification('🔔 Test Notification', {
+      self.registration.showNotification('\uD83D\uDD14 Test Notification', {
         body: 'Notifications are working! You can close this tab.',
         tag: 'test',
         data: { url: `${origin}/` },
-        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🤖</text></svg>',
+        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">\uD83E\uDD16</text></svg>',
       });
     }, 10000);
   }
@@ -35,7 +35,7 @@ self.addEventListener('activate', (event) => {
 
 function startPolling() {
   if (pollInterval) clearInterval(pollInterval);
-  // Don't reset lastTimestamp — preserve it so we catch buffered events
+  // Don't reset lastTimestamp -- preserve it so we catch buffered events
   // after server restart (server keeps last 100 events in ring buffer).
   consecutiveFailures = 0;
   currentInterval = BASE_INTERVAL;
@@ -105,7 +105,7 @@ function showNotification(ev) {
     body,
     tag,
     data: { url: `${origin}/` },
-    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🤖</text></svg>',
+    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">\uD83E\uDD16</text></svg>',
   });
 }
 

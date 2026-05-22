@@ -8,3 +8,5 @@ cmd/ contains all the executables.
 
 Web UI in cmd/llmdevkit/ directory.
 
+Non-ascii characters in any file is prohibited.
+

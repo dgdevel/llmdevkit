@@ -33,9 +33,9 @@ Follow instructions at [examples/dev-solo](https://github.com/dgdevel/llmdevkit/
 | `llmdevkit config` | Manage global and local configuration files |
 | `llmdevkit setup` | Download and configure llama.cpp for embedding/reranking |
 | `llmdevkit indexer` | Build and query the code index |
-| `llmdevkit mcp` | MCP server — file tools, task management, command runner, code search, memory |
-| `llmdevkit acp` | ACP server — agent harness with LLM orchestration, tool routing, and sub-agent invocation |
-| `llmdevkit server` | Web UI server — chat interface for agents with real-time streaming, conversation persistence, human-in-the-loop tools, and browser notifications |
+| `llmdevkit mcp` | MCP server -- file tools, task management, command runner, code search, memory |
+| `llmdevkit acp` | ACP server -- agent harness with LLM orchestration, tool routing, and sub-agent invocation |
+| `llmdevkit server` | Web UI server -- chat interface for agents with real-time streaming, conversation persistence, human-in-the-loop tools, and browser notifications |
 
 Configuration is stored in `.llmdevkit/` (local, per-project) and `$XDG_CONFIG_HOME/llmdevkit/` (global), merged with local overriding global. Both directories are invisible to all MCP tools.
 
@@ -82,7 +82,7 @@ When set to `true` (or `1` / `yes`), the write tools are hidden from the server:
 
 Block size (number of lines) for the `file_read` tool. Default is `100`.
 
-### `commands` — User-defined commands
+### `commands` -- User-defined commands
 
 The `commands` section lets you define named commands that can be listed and executed through the `available_commands` and `run_command` tools. Each command requires a `cmdline` and can optionally have a `description` and an `arguments` list.
 
@@ -158,7 +158,7 @@ MCP server exposing Unix-inspired file tools, task management, command runner, c
 llmdevkit mcp [--stdio|--http] [--address host:port] [--ignore pattern] [--show tools] [--hide tools] [--enable-indexer] [--enable-memory] [rootdirectory]
 ```
 
-All paths are virtual — `/` maps to the root directory. Path traversal is blocked.
+All paths are virtual -- `/` maps to the root directory. Path traversal is blocked.
 
 - Default transport is stdio.
 - `--http` starts a streamable HTTP server on the given `--address` (default `localhost:8080`).
@@ -213,7 +213,7 @@ All paths are virtual — `/` maps to the root directory. Path traversal is bloc
 | `relevant_memory` | Search relevant facts from prompt string | `prompt:string *` | |
 | `memory_extract` | Extract facts from text and store them in memory, deduplicating against existing facts | `text:string *` | Text to extract facts from (conversation, notes, document) |
 
-### `mcps` — Upstream MCP server proxying
+### `mcps` -- Upstream MCP server proxying
 
 `llmdevkit mcp` can proxy tools from upstream MCP servers, making them available as if they were built-in. Configuration is loaded from both global (`$XDG_CONFIG_HOME/llmdevkit/mcps.yml`) and local (`[root]/.llmdevkit/mcps.yml`), merged with local overriding global.
 
@@ -255,7 +255,7 @@ For each tool entry:
 | `arguments` | No | Map of argument names to `{rename, description}` overrides |
 | `keep_as_is` | No | If `true`, pass the tool through unchanged (no rename/description overrides) |
 
-When `tools` is omitted, all upstream tools are proxied. When present, only listed tools are proxied. Proxied tools are excluded from `--show`/`--hide` filtering — they are always visible.
+When `tools` is omitted, all upstream tools are proxied. When present, only listed tools are proxied. Proxied tools are excluded from `--show`/`--hide` filtering -- they are always visible.
 
 ### Code Indexer
 
@@ -273,7 +273,7 @@ ACP (Agent Client Protocol) server that orchestrates LLMs with tool-calling capa
 
 Configuration is loaded from `.llmdevkit/` (local) and `$XDG_CONFIG_HOME/llmdevkit/` (global), merged with local overriding global. Three YAML files define the agent behavior:
 
-### `llms.yml` — LLM endpoints
+### `llms.yml` -- LLM endpoints
 
 List of OpenAI-compatible endpoints.
 
@@ -295,11 +295,11 @@ llms:
 | `api_key` | No | API key (also sent as `Authorization: Bearer <key>` header) |
 | `headers` | No | Additional HTTP headers merged into every request |
 
-### `mcps.yml` — MCP tool servers
+### `mcps.yml` -- MCP tool servers
 
 Same format as [llmdevkit mcp upstream proxying](#mcps--upstream-mcp-server-proxying). Defines MCP servers whose tools are available to agents. Supports `url` (streamable HTTP), `sse`, and `stdio` transports.
 
-### `agents.yml` — Agent definitions
+### `agents.yml` -- Agent definitions
 
 Each agent binds an LLM, a set of tools, a system prompt, and lifecycle hooks.
 
@@ -326,7 +326,7 @@ The `tools` field is a space-separated list. Each token can be:
 |-------|-------------|
 | A name from `mcps.yml` | All tools from that MCP server are attached |
 | `devkit` | In-process `llmdevkit mcp` instance (file tools, tasks, commands, etc.) |
-| `agents` | Sub-agent invocation tools: `agents_available` (list agents) and `agent_invoke` (run agent with prompt). Each sub-agent invocation uses a fresh context — no conversation sharing. |
+| `agents` | Sub-agent invocation tools: `agents_available` (list agents) and `agent_invoke` (run agent with prompt). Each sub-agent invocation uses a fresh context -- no conversation sharing. |
 
 #### Hooks
 
@@ -354,26 +354,26 @@ Listens on `http://localhost:18681` and serves a single-page chat application.
 
 ### Features
 
-- **Web chat UI** — embedded single-page app with dark theme, conversation sidebar, markdown rendering, and auto-scroll
-- **Agent selection** — pick any agent defined in `agents.yml`; system prompt and tool set are loaded from config
-- **LLM selection** — pick any LLM from `llms.yml` to use with any agent; can switch mid-conversation, persisted across restarts
-- **AGENTS.md** — if present in the project root, its content is appended to the system prompt on every turn, providing project-specific instructions to the agent
-- **Real-time streaming** — LLM text and thinking chunks are streamed live via Server-Sent Events (SSE)
-- **Tool call visualization** — shows tool requests and responses as styled message bubbles
-- **Human-in-the-loop tools** — interactive UI for three tool types proxied from the ACP subprocess:
-  - `ask_open_ended` — text input for free-form answers
-  - `ask_exec` — command approval dialog with confirm/deny
-  - `ask_multiple_choice` — selectable choice list with optional free-text option
-- **Conversation persistence** — each conversation is stored as a JSONL file under `.llmdevkit/conversations/`, reloaded on restart
-- **Conversation management** — rename, undo last exchange, trim from a point onward
-- **Message queue** — enqueue prompts while an agent turn is running; queued messages are sent sequentially once the current turn completes
-- **Task management UI** — task list panel that parses `task_create`/`task_set_status`/`task_delete`/`tasks_list`/`tasks_clear` tool responses and renders status checkboxes; supports deleting tasks via the UI
-- **Token usage tracking** — displays cumulative prompt/completion token counts and LLM call count
-- **ACP orchestration** — spawns `llmdevkit acp` as a subprocess over stdio, communicates via ACP JSON-RPC, and proxies all session updates to the browser
-- **Side channel** — HTTP endpoint (`/api/sidechannel`) that the ACP subprocess uses to forward ask-tool requests, token stats, and tool definition caches back to the server
-- **MCP tool definitions** — resolves tool schemas from configured MCP servers and the in-process devkit tools for display in the UI
-- **`--enable-indexer` flag** — passed through to `llmdevkit acp` via environment variable to enable code indexing tools
-- **Browser notifications** — optional service worker delivers desktop notifications when an agent needs input (ask tools) or finishes a turn; bell icon in top bar toggles on/off; notifications are clickable and reopen the tab
+- **Web chat UI** -- embedded single-page app with dark theme, conversation sidebar, markdown rendering, and auto-scroll
+- **Agent selection** -- pick any agent defined in `agents.yml`; system prompt and tool set are loaded from config
+- **LLM selection** -- pick any LLM from `llms.yml` to use with any agent; can switch mid-conversation, persisted across restarts
+- **AGENTS.md** -- if present in the project root, its content is appended to the system prompt on every turn, providing project-specific instructions to the agent
+- **Real-time streaming** -- LLM text and thinking chunks are streamed live via Server-Sent Events (SSE)
+- **Tool call visualization** -- shows tool requests and responses as styled message bubbles
+- **Human-in-the-loop tools** -- interactive UI for three tool types proxied from the ACP subprocess:
+  - `ask_open_ended` -- text input for free-form answers
+  - `ask_exec` -- command approval dialog with confirm/deny
+  - `ask_multiple_choice` -- selectable choice list with optional free-text option
+- **Conversation persistence** -- each conversation is stored as a JSONL file under `.llmdevkit/conversations/`, reloaded on restart
+- **Conversation management** -- rename, undo last exchange, trim from a point onward
+- **Message queue** -- enqueue prompts while an agent turn is running; queued messages are sent sequentially once the current turn completes
+- **Task management UI** -- task list panel that parses `task_create`/`task_set_status`/`task_delete`/`tasks_list`/`tasks_clear` tool responses and renders status checkboxes; supports deleting tasks via the UI
+- **Token usage tracking** -- displays cumulative prompt/completion token counts and LLM call count
+- **ACP orchestration** -- spawns `llmdevkit acp` as a subprocess over stdio, communicates via ACP JSON-RPC, and proxies all session updates to the browser
+- **Side channel** -- HTTP endpoint (`/api/sidechannel`) that the ACP subprocess uses to forward ask-tool requests, token stats, and tool definition caches back to the server
+- **MCP tool definitions** -- resolves tool schemas from configured MCP servers and the in-process devkit tools for display in the UI
+- **`--enable-indexer` flag** -- passed through to `llmdevkit acp` via environment variable to enable code indexing tools
+- **Browser notifications** -- optional service worker delivers desktop notifications when an agent needs input (ask tools) or finishes a turn; bell icon in top bar toggles on/off; notifications are clickable and reopen the tab
 
 ### REST API
 
@@ -408,5 +408,5 @@ Listens on `http://localhost:18681` and serves a single-page chat application.
 
 This project is licensed under the GNU General Public License v3.0 or later - see the [LICENSE](https://github.com/dgdevel/llmdevkit/blob/main/LICENSE.md) file for details.
 
-Copyright © 2026 Daniele Guttuso
+Copyright (C) 2026 Daniele Guttuso
 

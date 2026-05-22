@@ -85,7 +85,7 @@ func TestScanAndIndexRemovesDeletedFiles(t *testing.T) {
 	// Delete the file
 	os.Remove(goFile)
 
-	// Second scan — should remove stale entries
+	// Second scan - should remove stale entries
 	fileCount2, _ := idx.scanAndIndex()
 	if fileCount2 != 0 {
 		t.Errorf("expected 0 new files on second scan, got %d", fileCount2)

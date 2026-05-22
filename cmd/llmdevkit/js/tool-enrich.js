@@ -26,11 +26,11 @@ export async function openToolEnrichModal() {
   }
 
   const sel = document.getElementById('toolEnrichSelect');
-  sel.innerHTML = '<option value="">— Select a tool —</option>';
+  sel.innerHTML = '<option value="">-- Select a tool --</option>';
   for (const t of toolDefs) {
     const opt = document.createElement('option');
     opt.value = t.name;
-    opt.textContent = t.description ? `${t.name} — ${t.description}` : t.name;
+    opt.textContent = t.description ? `${t.name} -- ${t.description}` : t.name;
     sel.appendChild(opt);
   }
 
@@ -64,7 +64,7 @@ function renderArgForm() {
 
     const label = document.createElement('label');
     label.className = 'form-label small text-body-secondary mb-1';
-    const desc = schema.description ? ` — ${schema.description}` : '';
+    const desc = schema.description ? ` -- ${schema.description}` : '';
     const reqMark = required.has(key) ? ' *' : '';
     label.textContent = `${key}${reqMark}${desc}`;
     div.appendChild(label);
@@ -75,7 +75,7 @@ function renderArgForm() {
       sel.dataset.argName = key;
       const defOpt = document.createElement('option');
       defOpt.value = '';
-      defOpt.textContent = '— select —';
+      defOpt.textContent = '-- select --';
       sel.appendChild(defOpt);
       for (const v of schema.enum) {
         const o = document.createElement('option');
@@ -174,7 +174,7 @@ function renderSelectedTools() {
 
     const btn = document.createElement('button');
     btn.className = 'btn btn-sm btn-outline-danger py-0 px-1';
-    btn.innerHTML = '✕';
+    btn.innerHTML = '\u2715';
     btn.title = 'Remove';
     const idx = i;
     btn.addEventListener('click', () => removeToolCall(idx));

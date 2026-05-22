@@ -17,7 +17,7 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// MockLLM – a scriptable, OpenAI-compatible HTTP server for testing.
+// MockLLM - a scriptable, OpenAI-compatible HTTP server for testing.
 //
 // Enqueue steps (text, tool calls, or combinations), then the server
 // consumes them in FIFO order, one step per /chat/completions call.
@@ -291,7 +291,7 @@ func writeMockResponse(w http.ResponseWriter, resp mockLLMResponse) {
 }
 
 // ---------------------------------------------------------------------------
-// RecordingClient – implements acp.Client, recording every call.
+// RecordingClient - implements acp.Client, recording every call.
 // ---------------------------------------------------------------------------
 
 // RecordingClient records all client-side ACP calls for assertions.
@@ -438,7 +438,7 @@ func (c *RecordingClient) FindToolCallUpdates() []acp.ToolCallUpdate {
 }
 
 // ---------------------------------------------------------------------------
-// TestConnection – bidirectional pipe (same as acp integration test pattern).
+// TestConnection - bidirectional pipe (same as acp integration test pattern).
 // ---------------------------------------------------------------------------
 
 type testPipe struct {
@@ -467,7 +467,7 @@ func (p *testPipe) Close() {
 }
 
 // ---------------------------------------------------------------------------
-// testLLMAgent – an acp.Agent backed by MockLLM, simulating llmdevkit-acp.
+// testLLMAgent - an acp.Agent backed by MockLLM, simulating llmdevkit-acp.
 // ---------------------------------------------------------------------------
 
 type testLLMAgent struct {
@@ -550,7 +550,7 @@ func (a *testLLMAgent) Prompt(ctx context.Context, params *acp.PromptRequest) (*
 			}
 		}
 
-		// No tool calls → done
+		// No tool calls -> done
 		if len(choice.Message.ToolCalls) == 0 || choice.FinishReason == "stop" {
 			return &acp.PromptResponse{StopReason: acp.StopReasonEndTurn}, nil
 		}
@@ -648,7 +648,7 @@ func (m *MockLLM) CallLLM(ctx context.Context, messages []runnerMsg) (*mockLLMRe
 }
 
 // ---------------------------------------------------------------------------
-// Harness – wires everything together for end-to-end ACP tests.
+// Harness - wires everything together for end-to-end ACP tests.
 // ---------------------------------------------------------------------------
 
 // TestHarness wires a MockLLM + testLLMAgent + RecordingClient + pipe connections.

@@ -31,10 +31,10 @@ func TestTreeBasic(t *testing.T) {
 	if lines[0] != "/" {
 		t.Errorf("first line should be '/', got: %s", lines[0])
 	}
-	if !strings.Contains(text, "├── a/") || !strings.Contains(text, "└── d/") {
+	if !strings.Contains(text, "\u251C\u2500\u2500 a/") || !strings.Contains(text, "\u2514\u2500\u2500 d/") {
 		t.Errorf("expected tree output, got:\n%s", text)
 	}
-	if !strings.Contains(text, "├── b/") || !strings.Contains(text, "└── c/") {
+	if !strings.Contains(text, "\u251C\u2500\u2500 b/") || !strings.Contains(text, "\u2514\u2500\u2500 c/") {
 		t.Errorf("expected nested dirs, got:\n%s", text)
 	}
 	// without with_files, files should not appear

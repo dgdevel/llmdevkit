@@ -37,7 +37,7 @@ import (
 //go:embed ui.html js sw.js
 var staticFS embed.FS
 
-// ── Data types ──────────────────────────────────────────────────────────────
+// -- Data types --------------------------------------------------------------
 
 type BubbleMessage struct {
 	Type           string   `json:"type"`
@@ -101,7 +101,7 @@ type jsonlLine struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-// ── Server state ────────────────────────────────────────────────────────────
+// -- Server state ------------------------------------------------------------
 
 type Server struct {
 	rootDir  string
@@ -125,7 +125,7 @@ type Server struct {
 	sseClients map[chan SSEEvent]struct{}
 
 	toolDefsMu    sync.RWMutex
-	toolDefsCache map[string][]ToolDefInfo // agent name → cached tool defs from ACP
+	toolDefsCache map[string][]ToolDefInfo // agent name -> cached tool defs from ACP
 
 	enableIndexer bool
 
@@ -196,7 +196,7 @@ func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, result)
 }
 
-// ── Main ────────────────────────────────────────────────────────────────────
+// -- Main --------------------------------------------------------------------
 
 func runServer() {
 	enableIndexer := flag.Bool("enable-indexer", false, "pass --enable-indexer through to llmdevkit mcp via ACP")
@@ -278,7 +278,7 @@ func runServer() {
 	}
 }
 
-// ── Static UI ───────────────────────────────────────────────────────────────
+// -- Static UI ---------------------------------------------------------------
 
 func (s *Server) serveUI(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
@@ -325,7 +325,7 @@ func (s *Server) Close() {
 	}
 }
 
-// ── API: Agents ─────────────────────────────────────────────────────────────
+// -- API: Agents -------------------------------------------------------------
 
 type agentInfo struct {
 	Name string `json:"name"`
@@ -355,7 +355,7 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, list)
 	}
 	
-	// ── API: LLMs ───────────────────────────────────────────────────────────────
+	// -- API: LLMs ---------------------------------------------------------------
 	
 	func (s *Server) handleLLMs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -381,7 +381,7 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 	ContextSize int    `json:"context_size,omitempty"`
 	}
 	
-	// ── API: Tool Definitions ───────────────────────────────────────────────────
+	// -- API: Tool Definitions ---------------------------------------------------
 
 func (s *Server) handleToolDefs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -418,7 +418,7 @@ func (s *Server) resolveToolDefs(ctx context.Context, agentName string) ([]ToolD
 			if len(cached) > 0 {
 				defs = append(defs, cached...)
 			} else {
-				// Cache empty (ACP not started yet) — probe llmdevkit mcp directly.
+				// Cache empty (ACP not started yet) -- probe llmdevkit mcp directly.
 				d, err := s.resolveMCPToolDefsStdio(ctx, "llmdevkit", "mcp", s.rootDir)
 				if err != nil {
 					s.dlog.Log("resolveToolDefs devkit fallback: %v", err)
@@ -531,7 +531,7 @@ func (s *Server) executeManualToolCalls(ctx context.Context, agentName string, c
 		return nil, fmt.Errorf("agent %q not found", agentName)
 	}
 
-	// Build a map: toolName → MCP server config (or "devkit"/"ask"/"agents")
+	// Build a map: toolName -> MCP server config (or "devkit"/"ask"/"agents")
 	toolToServer := make(map[string]string)
 	for _, token := range agentCfg.ToolNames() {
 		switch token {
@@ -647,7 +647,7 @@ func (s *Server) callMCPTool(ctx context.Context, scfg mcps.ServerConfig, toolNa
 	return strings.Join(texts, "\n"), nil
 }
 
-// ── API: Conversations ──────────────────────────────────────────────────────
+// -- API: Conversations ------------------------------------------------------
 
 func (s *Server) handleConversations(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -883,7 +883,7 @@ func (s *Server) handleConvInit(w http.ResponseWriter, r *http.Request, convID s
 	})
 	s.appendJSONL(convID, "bubble", BubbleMessage{Type: "user", Content: req.Prompt, Timestamp: nowISO()})
 	s.setConvRunning(convID, true)
-	// Snapshot conv for SSE broadcast — goroutine may modify conv concurrently
+	// Snapshot conv for SSE broadcast -- goroutine may modify conv concurrently
 	s.mu.Lock()
 	convCopy := *conv
 	convCopy.Messages = make([]BubbleMessage, len(conv.Messages))
@@ -1321,7 +1321,7 @@ func (s *Server) dequeuePrompt(convID string) string {
 	return prompt
 }
 
-// ── ACP subprocess management ───────────────────────────────────────────────
+// -- ACP subprocess management -----------------------------------------------
 
 func (s *Server) ensureACPConnection() error {
 	s.acpMu.Lock()
@@ -1447,7 +1447,7 @@ func (s *Server) ensureACPConnection() error {
 	return nil
 }
 
-// ── ACP Client implementation ───────────────────────────────────────────────
+// -- ACP Client implementation -----------------------------------------------
 
 // setContextConn pre-sets the ctx field on the inner *acp.Connection
 // so that SendRequest won't nil-dereference before conn.Start() runs.
@@ -1512,7 +1512,7 @@ func (c *acpClientHandler) handleSessionUpdate(convID string, u acp.SessionUpdat
 		if tcu.Status != nil {
 			status = string(*tcu.Status)
 		}
-		// Handle rawInput update — update the tool_request bubble with arguments
+		// Handle rawInput update -- update the tool_request bubble with arguments
 		if len(tcu.RawInput) > 0 {
 			c.server.updateToolRequestRawInput(convID, string(tcu.ToolCallID), tcu.RawInput)
 		}
@@ -1573,7 +1573,7 @@ func (c *acpClientHandler) KillTerminalCommand(ctx context.Context, params *acp.
 	return &acp.KillTerminalResponse{}, nil
 }
 
-// ── ACP prompt execution ────────────────────────────────────────────────────
+// -- ACP prompt execution ----------------------------------------------------
 
 func (s *Server) runACPPrompt(convID string, promptText string) {
 	s.mu.RLock()
@@ -1600,7 +1600,7 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 			s.setConvRunning(convID, false)
 			return
 		}
-		// Fresh ACP process — need a new session
+		// Fresh ACP process -- need a new session
 		s.acpMu.Lock()
 		sessResp, err := s.acpConn.NewSession(context.Background(), &acp.NewSessionRequest{
 			Cwd: s.rootDir,
@@ -1743,7 +1743,7 @@ func (s *Server) runACPPrompt(convID string, promptText string) {
 	}
 }
 
-// ── Bubble management ───────────────────────────────────────────────────────
+// -- Bubble management -------------------------------------------------------
 
 // nowISO returns current time in ISO 8601 format.
 func nowISO() string {
@@ -1855,9 +1855,9 @@ func (s *Server) updateToolRequestRawInput(convID, toolCallID string, rawInput j
 	s.mu.Unlock()
 }
 
-// ── Ask tool handling ───────────────────────────────────────────────────────
+// -- Ask tool handling -------------------------------------------------------
 
-// ── Side-channel for ask tools (called by llmdevkit acp subprocess) ──────────
+// -- Side-channel for ask tools (called by llmdevkit acp subprocess) ----------
 
 func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -2132,7 +2132,7 @@ func (s *Server) waitForAskAnswer(convID, askID, askType string, payload interfa
 	return <-ch
 }
 
-// ── SSE ─────────────────────────────────────────────────────────────────────
+// -- SSE ---------------------------------------------------------------------
 
 func (s *Server) handleTasksRead(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -2261,7 +2261,7 @@ func (s *Server) broadcastSSE(convID, event string, data interface{}) {
 	}
 }
 
-// ── JSONL persistence (one file per conversation) ──────────────────────────
+// -- JSONL persistence (one file per conversation) --------------------------
 
 func (s *Server) convDir() string {
 	return filepath.Join(s.rootDir, ".llmdevkit", "conversations")
@@ -2454,7 +2454,7 @@ func (s *Server) loadConversations() error {
 	return nil
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// -- Helpers -----------------------------------------------------------------
 
 func writeJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")

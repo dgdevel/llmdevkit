@@ -6,7 +6,7 @@ import (
 )
 
 // formatEntrySize formats bytes with thresholds at half of next unit.
-// < 512b → exact int + "b", < 512Kb → float with 2 decimals + "Kb", < 512Mb → "Mb".
+// < 512b -> exact int + "b", < 512Kb -> float with 2 decimals + "Kb", < 512Mb -> "Mb".
 func formatEntrySize(b int64) string {
 	const (
 		KB = 1024

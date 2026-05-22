@@ -72,9 +72,9 @@ func TreeHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRes
 			if child.isDir {
 				suffix := child.name + "/"
 				if isLast {
-					buf.WriteString(prefix + "└── " + suffix + "\n")
+					buf.WriteString(prefix + "\u2514\u2500\u2500 " + suffix + "\n")
 				} else {
-					buf.WriteString(prefix + "├── " + suffix + "\n")
+					buf.WriteString(prefix + "\u251C\u2500\u2500 " + suffix + "\n")
 				}
 			} else {
 				sizeStr := "?"
@@ -91,12 +91,12 @@ func TreeHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRes
 				}
 				label := fmt.Sprintf("%s, %s, %s", sizeStr, lineStr, child.name)
 				if isLast {
-					buf.WriteString(prefix + "└── " + label + "\n")
+					buf.WriteString(prefix + "\u2514\u2500\u2500 " + label + "\n")
 				} else {
-					buf.WriteString(prefix + "├── " + label + "\n")
+					buf.WriteString(prefix + "\u251C\u2500\u2500 " + label + "\n")
 				}
 			}
-			nextPrefix := prefix + "│   "
+			nextPrefix := prefix + "\u2502   "
 			if isLast {
 				nextPrefix = prefix + "    "
 			}

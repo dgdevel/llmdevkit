@@ -24,7 +24,7 @@ export function updateState(conv) {
   const isRunning = conv.running || false;
   llmSel.disabled = isRunning;
   if (isRunning) {
-    stateEl.innerHTML = '<span class="text-success fw-semibold">● Running</span>';
+    stateEl.innerHTML = '<span class="text-success fw-semibold">\u25CF Running</span>';
     cancelBtn.classList.remove('d-none');
     sendBtn.disabled = false;
     undoBtn.disabled = true;

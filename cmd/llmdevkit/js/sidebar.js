@@ -63,8 +63,8 @@ export function renderConvList() {
         ${sizeStr ? `<span class="text-body-secondary" style="font-size:.65rem;white-space:nowrap">${sizeStr}</span>` : ''}
       </div>
       <span class="d-flex gap-1 align-items-center">
-        <span class="conv-rename p-0 border-0 text-body-secondary" style="cursor:pointer;font-size:.65rem;display:none" title="Rename">✏</span>
-        <button class="btn btn-sm p-0 border-0 conv-del text-danger" style="font-size:1rem;line-height:1">×</button>
+        <span class="conv-rename p-0 border-0 text-body-secondary" style="cursor:pointer;font-size:.65rem;display:none" title="Rename">\u270F</span>
+        <button class="btn btn-sm p-0 border-0 conv-del text-danger" style="font-size:1rem;line-height:1">\u00D7</button>
       </span>
     </div>`;
   });

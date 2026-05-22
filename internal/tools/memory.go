@@ -138,7 +138,7 @@ func MemoryExtractHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		// Skip empty lines, bullet prefixes, numbered prefixes
-		line = strings.TrimLeft(line, "-•*0123456789. )")
+		line = strings.TrimLeft(line, "-\u2022*0123456789. )")
 		line = strings.TrimSpace(line)
 		if line == "" || len(line) < 10 {
 			continue
@@ -175,7 +175,7 @@ func MemoryExtractHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 			bestMatch := similar[0]
 
 			if bestMatch.Score > 0.93 {
-				// Nearly identical — skip, don't store duplicate
+				// Nearly identical - skip, don't store duplicate
 				results = append(results, factResult{
 					Fact:    fact,
 					Action:  "skipped_duplicate",
@@ -184,7 +184,7 @@ func MemoryExtractHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 				continue
 			}
 
-			// Similar but not identical — this may be a refinement.
+			// Similar but not identical - this may be a refinement.
 			// Use the extractor to decide if the new fact adds info.
 			refineMsgs := []indexer.ChatMessage{
 				{Role: "system", Content: "You are comparing two factual statements. Does statement B add new information not present in statement A, or is it just a rephrasing? Answer ONLY 'new' or 'rephrase'."},

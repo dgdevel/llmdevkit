@@ -13,7 +13,7 @@ export function renderQueue() {
   const sendBtn = document.getElementById('sendBtn');
   if (sendBtn) {
     const isRunning = conv && conv.running;
-    sendBtn.textContent = isRunning ? '⏳ Queue' : '▶ Send';
+    sendBtn.textContent = isRunning ? '\u23F3 Queue' : '\u25B6 Send';
   }
 
   if (queue.length === 0) {
@@ -26,7 +26,7 @@ export function renderQueue() {
     <div class="d-flex align-items-center gap-2 py-1 px-2 border rounded small mb-1 queue-item" data-idx="${i}">
       <span class="text-body-secondary flex-shrink-0 small">#${i+1}</span>
       <span class="flex-grow-1 text-truncate">${esc(msg)}</span>
-      <button class="btn btn-sm btn-outline-secondary py-0 px-1 flex-shrink-0 queue-del-btn" data-idx="${i}" title="Remove from queue">✕</button>
+      <button class="btn btn-sm btn-outline-secondary py-0 px-1 flex-shrink-0 queue-del-btn" data-idx="${i}" title="Remove from queue">\u2715</button>
     </div>
   `).join('');
 }

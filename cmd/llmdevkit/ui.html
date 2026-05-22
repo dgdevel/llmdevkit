@@ -44,13 +44,13 @@ html,body{height:100%;overflow:hidden}
   
   <span class="badge text-bg-secondary small d-none" id="ctxUsageBadge" title="Context window usage"></span>
   
-  <button class="btn btn-sm btn-outline-danger" id="notifBtn" onclick="toggleNotifications()" title="Notifications disabled (click to enable)">🔔</button>
+  <button class="btn btn-sm btn-outline-danger" id="notifBtn" onclick="toggleNotifications()" title="Notifications disabled (click to enable)">&#128276;</button>
 
   <div class="form-check form-switch mb-0 d-inline-flex align-items-center gap-1 small">
     <input class="form-check-input" type="checkbox" id="autoscrollCheck" checked style="cursor:pointer">
     <label class="form-check-label" for="autoscrollCheck" style="cursor:pointer;font-size:.75rem">Autoscroll</label>
   </div>
-  <button class="btn btn-sm btn-outline-danger d-none" id="cancelBtn" onclick="cancelSession()">⏹ Cancel</button>
+  <button class="btn btn-sm btn-outline-danger d-none" id="cancelBtn" onclick="cancelSession()">&#x23F9; Cancel</button>
 </nav>
 <!-- Body -->
 <div class="d-flex flex-grow-1 overflow-hidden">
@@ -70,7 +70,7 @@ html,body{height:100%;overflow:hidden}
     <div class="border-top overflow-auto flex-shrink-0 px-3 py-2" id="taskList" style="display:none;max-height:200px">
       <div class="d-flex align-items-center mb-1">
         <h6 class="text-uppercase mb-0 small text-body-secondary flex-grow-1">Tasks</h6>
-        <span id="tasksClearBtn" style="cursor:pointer;font-size:.7rem" class="text-body-secondary" title="Clear all tasks">✕ Clear</span>
+        <span id="tasksClearBtn" style="cursor:pointer;font-size:.7rem" class="text-body-secondary" title="Clear all tasks">&#x2715; Clear</span>
       </div>
       <div id="taskItems"></div>
     </div>
@@ -81,20 +81,20 @@ html,body{height:100%;overflow:hidden}
     <div class="px-3 py-1 flex-shrink-0" id="queueContainer" style="display:none"></div>
     <div class="px-3 py-2 border-top flex-shrink-0">
       <div class="d-flex gap-2 align-items-end">
-        <textarea class="form-control flex-grow-1 msg-input" id="promptInput" rows="1" placeholder="Type your prompt… (Enter to send, Shift+Enter for newline)" onkeydown="onPromptKey(event)" oninput="autoGrow(this)"></textarea>
+        <textarea class="form-control flex-grow-1 msg-input" id="promptInput" rows="1" placeholder="Type your prompt... (Enter to send, Shift+Enter for newline)" onkeydown="onPromptKey(event)" oninput="autoGrow(this)"></textarea>
         <div class="btn-group" id="sendBtnGroup">
-          <button class="btn btn-primary text-nowrap" id="sendBtn" onclick="sendPrompt()">▶ Send</button>
+          <button class="btn btn-primary text-nowrap" id="sendBtn" onclick="sendPrompt()">&#x2715; Send</button>
           <button class="btn btn-primary dropdown-toggle dropdown-toggle-split" type="button" id="sendDropdownToggle" data-bs-toggle="dropdown" aria-expanded="false" style="padding-left:.3rem;padding-right:.6rem">
             <span class="visually-hidden">Toggle Dropdown</span>
           </button>
           <ul class="dropdown-menu dropdown-menu-end" id="sendMenu">
             <li><a class="dropdown-item" href="#" id="sendChoiceSend" onclick="sendPrompt()">Send message</a></li>
-            <li><a class="dropdown-item" href="#" id="sendChoiceTools" onclick="openToolEnrich()">Add tool calls…</a></li>
+            <li><a class="dropdown-item" href="#" id="sendChoiceTools" onclick="openToolEnrich()">Add tool calls...</a></li>
           </ul>
         </div>
-        <button class="btn btn-outline-secondary text-nowrap" id="undoBtn" onclick="undoLastPrompt()">↩ Undo</button>
-        <button class="btn btn-outline-warning text-nowrap" id="trimBtn" onclick="trimConversation()">✂ Trim</button>
-         <button class="btn btn-outline-info text-nowrap" onclick="exportConversation()">📥 Export HTML</button>
+        <button class="btn btn-outline-secondary text-nowrap" id="undoBtn" onclick="undoLastPrompt()">&#x21A9; Undo</button>
+        <button class="btn btn-outline-warning text-nowrap" id="trimBtn" onclick="trimConversation()">&#x2702; Trim</button>
+         <button class="btn btn-outline-info text-nowrap" onclick="exportConversation()">&#x1f4e5; Export HTML</button>
         </div>
     </div>
   </div>
@@ -112,7 +112,7 @@ html,body{height:100%;overflow:hidden}
         <label class="form-label small text-body-secondary">Agent</label>
         <select class="form-select form-select-sm mb-3" id="setupAgent" onchange="onSetupAgentChange()"></select>
         <label class="form-label small text-body-secondary">System Prompt Override (optional)</label>
-        <textarea class="form-control form-control-sm" id="setupSysPrompt" rows="4" placeholder="Leave empty to use agent default…"></textarea>
+        <textarea class="form-control form-control-sm" id="setupSysPrompt" rows="4" placeholder="Leave empty to use agent default..."></textarea>
       </div>
       <div class="modal-footer border-0 pt-0">
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cancelSetup()">Cancel</button>
@@ -147,7 +147,7 @@ html,body{height:100%;overflow:hidden}
       </div>
       <div class="modal-footer border-0 pt-0">
         <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-sm btn-primary" id="toolEnrichSendBtn">▶ Send with Tools</button>
+        <button type="button" class="btn btn-sm btn-primary" id="toolEnrichSendBtn">&#x25B6; Send with Tools</button>
       </div>
     </div>
   </div>

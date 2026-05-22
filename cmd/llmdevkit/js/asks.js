@@ -15,10 +15,10 @@ export function renderAskOpenEnded(m) {
     return bubbleHTML('tool-resp', 'Your Answer', esc(m.answer), false, true, briefText(m.answer));
   }
   return `<div class="card border-primary align-self-center" style="max-width:90%" id="ask-${m.id}">
-    <div class="card-header"><h6 class="card-title mb-0 small fw-semibold">💬 Question</h6></div>
+    <div class="card-header"><h6 class="card-title mb-0 small fw-semibold">\uD83D\uDCAC Question</h6></div>
     <div class="card-body">
       <p class="mb-2">${md(m.question)}</p>
-      <textarea class="form-control form-control-sm mb-2" id="ask-input-${m.id}" rows="3" placeholder="Your answer…"></textarea>
+      <textarea class="form-control form-control-sm mb-2" id="ask-input-${m.id}" rows="3" placeholder="Your answer..."></textarea>
       <div class="d-flex gap-2">
         <button class="btn btn-sm btn-success" onclick="answerAsk('${m.id}', document.getElementById('ask-input-${m.id}').value)">Submit</button>
       </div>
@@ -39,11 +39,11 @@ export function handleAskExec(conv, ev) {
 
 export function renderAskExec(m) {
   if (m.answered) {
-    const status = m.approved ? '✅ Approved' : '❌ Denied';
+    const status = m.approved ? '\u2705 Approved' : '\u274C Denied';
     return bubbleHTML(m.approved ? 'tool-resp' : 'error', `ask_exec ${status}`, esc(m.approved ? m.cmdline : 'Denied: ' + m.answer), false, true, `${status}: ${esc(m.approved ? m.cmdline : m.answer)}`);
   }
   return `<div class="card border-warning align-self-center" style="max-width:90%" id="ask-${m.id}">
-    <div class="card-header"><h6 class="card-title mb-0 small fw-semibold">⚡ Execute Command</h6></div>
+    <div class="card-header"><h6 class="card-title mb-0 small fw-semibold">\u26A1 Execute Command</h6></div>
     <div class="card-body">
       <label class="form-label small mb-1 text-body-secondary">Command:</label>
       <input class="form-control form-control-sm mb-2" id="ask-cmd-${m.id}" value="${esc(m.cmdline)}" />
@@ -55,7 +55,7 @@ export function renderAskExec(m) {
       </div>
       <div class="mt-2 d-none" id="deny-row-${m.id}">
         <label class="form-label small mb-1 text-body-secondary">Reason for denial (optional):</label>
-        <input class="form-control form-control-sm mb-1" id="ask-deny-${m.id}" placeholder="Explain to the agent…" />
+        <input class="form-control form-control-sm mb-1" id="ask-deny-${m.id}" placeholder="Explain to the agent..." />
         <button class="btn btn-sm btn-outline-danger" onclick="submitDeny('${m.id}')">Submit Deny</button>
       </div>
     </div>
@@ -84,12 +84,12 @@ export function renderAskMultipleChoice(m) {
   let openEnd = '';
   if (m.allow_open_ended) {
     openEnd = `<div class="mt-2 d-flex gap-2">
-      <input class="form-control form-control-sm flex-grow-1" id="ask-custom-${m.id}" placeholder="Type your own response…" />
+      <input class="form-control form-control-sm flex-grow-1" id="ask-custom-${m.id}" placeholder="Type your own response..." />
       <button class="btn btn-sm btn-outline-secondary" onclick="answerCustom('${m.id}')">Submit</button>
     </div>`;
   }
   return `<div class="card border-info align-self-center" style="max-width:90%" id="ask-${m.id}">
-    <div class="card-header"><h6 class="card-title mb-0 small fw-semibold">❓ Multiple Choice</h6></div>
+    <div class="card-header"><h6 class="card-title mb-0 small fw-semibold">\u2753 Multiple Choice</h6></div>
     <div class="card-body">
       <p class="mb-2">${md(m.question)}</p>
       <div>${choices}</div>

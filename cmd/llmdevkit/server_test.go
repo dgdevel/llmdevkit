@@ -27,7 +27,7 @@ func noopLogger() *debuglog.Logger {
 	return debuglog.For("test")
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// -- Helpers ------------------------------------------------------------------
 
 // newTestServer creates a Server with nil configs (no ACP subprocess).
 // Returns the server and a temp dir (caller removes via t.Cleanup).
@@ -152,7 +152,7 @@ func deleteURL(t *testing.T, url string) *http.Response {
 	return resp
 }
 
-// ── Server helpers exposed for testing ──────────────────────────────────────
+// -- Server helpers exposed for testing --------------------------------------
 // addConversation adds a conversation directly to the server's map.
 func (s *Server) addConversation(conv *Conversation) {
 	s.mu.Lock()
@@ -161,7 +161,7 @@ func (s *Server) addConversation(conv *Conversation) {
 	s.convOrder = append([]string{conv.ID}, s.convOrder...)
 }
 
-// ── Tests: GET / (UI) ───────────────────────────────────────────────────────
+// -- Tests: GET / (UI) -------------------------------------------------------
 
 func TestServer_ServeUI(t *testing.T) {
 	srv := newTestServer(t)
@@ -203,7 +203,7 @@ func TestServer_ServeUI_NotFound(t *testing.T) {
 	}
 }
 
-// ── Tests: GET /api/agents ──────────────────────────────────────────────────
+// -- Tests: GET /api/agents --------------------------------------------------
 
 func TestServer_Agents_List(t *testing.T) {
 	srv := newTestServerWithConfigs(t)
@@ -252,7 +252,7 @@ func TestServer_Agents_MethodNotAllowed(t *testing.T) {
 	}
 }
 
-// ── Tests: GET /api/tooldefs ─────────────────────────────────────────────────
+// -- Tests: GET /api/tooldefs -------------------------------------------------
 
 func TestServer_ToolDefs_NoAgent(t *testing.T) {
 	srv := newTestServerWithConfigs(t)
@@ -285,7 +285,7 @@ func TestServer_ToolDefs_AgentWithAsk(t *testing.T) {
 	var defs []ToolDefInfo
 	getJSON(t, base+"/api/tooldefs?agent=chat", &defs)
 
-	// "chat" agent has tools: "ask" → should resolve to 3 ask tools
+	// "chat" agent has tools: "ask" -> should resolve to 3 ask tools
 	if len(defs) < 3 {
 		t.Errorf("expected at least 3 ask tool defs, got %d", len(defs))
 	}
@@ -299,7 +299,7 @@ func TestServer_ToolDefs_AgentWithAsk(t *testing.T) {
 	}
 }
 
-// ── Tests: GET /api/conversations ────────────────────────────────────────────
+// -- Tests: GET /api/conversations --------------------------------------------
 
 func TestServer_Conversations_ListEmpty(t *testing.T) {
 	srv := newTestServer(t)
@@ -386,7 +386,7 @@ func TestServer_Conversations_MethodNotAllowed(t *testing.T) {
 	}
 }
 
-// ── Tests: GET/DELETE /api/conversations/{id} ───────────────────────────────
+// -- Tests: GET/DELETE /api/conversations/{id} -------------------------------
 
 func TestServer_Conversation_Get(t *testing.T) {
 	srv := newTestServer(t)
@@ -463,7 +463,7 @@ func TestServer_Conversation_Delete_NotFound(t *testing.T) {
 	}
 }
 
-// ── Tests: /api/conversations/{id}/prompt ────────────────────────────────────
+// -- Tests: /api/conversations/{id}/prompt ------------------------------------
 
 func TestServer_Conversation_Prompt_NotInitialized(t *testing.T) {
 	srv := newTestServer(t)
@@ -498,7 +498,7 @@ func TestServer_Conversation_Prompt_NotFound(t *testing.T) {
 	}
 }
 
-// ── Tests: /api/conversations/{id}/cancel ────────────────────────────────────
+// -- Tests: /api/conversations/{id}/cancel ------------------------------------
 
 func TestServer_Conversation_Cancel_NotFound(t *testing.T) {
 	srv := newTestServer(t)
@@ -517,15 +517,15 @@ func TestServer_Conversation_Cancel_NoSession(t *testing.T) {
 	var conv Conversation
 	postJSON(t, base+"/api/conversations", map[string]string{"agent": "test"}, &conv)
 
-	// Cancel without ACP session → should still work (just no Cancel RPC)
+	// Cancel without ACP session -> should still work (just no Cancel RPC)
 	resp := postJSON(t, base+"/api/conversations/"+conv.ID+"/cancel", nil, nil)
 	if resp.StatusCode != 204 {
 		t.Fatalf("expected 204, got %d", resp.StatusCode)
 	}
 }
 
-// ── Tests: /api/conversations/{id}/init (requires ACP subprocess) ────────────
-// These test init — may succeed or fail depending on whether llmdevkit is in PATH.
+// -- Tests: /api/conversations/{id}/init (requires ACP subprocess) ------------
+// These test init -- may succeed or fail depending on whether llmdevkit is in PATH.
 
 func TestServer_Conversation_Init_ACPNotAvailable(t *testing.T) {
 	srv := newTestServer(t)
@@ -546,7 +546,7 @@ func TestServer_Conversation_Init_ACPNotAvailable(t *testing.T) {
 	}
 }
 
-// ── Tests: /api/conversations/{id}/unknown ───────────────────────────────────
+// -- Tests: /api/conversations/{id}/unknown -----------------------------------
 
 func TestServer_Conversation_UnknownAction(t *testing.T) {
 	srv := newTestServer(t)
@@ -561,7 +561,7 @@ func TestServer_Conversation_UnknownAction(t *testing.T) {
 	}
 }
 
-// ── Tests: SSE /api/events ───────────────────────────────────────────────────
+// -- Tests: SSE /api/events ---------------------------------------------------
 
 func TestServer_SSE_Connect(t *testing.T) {
 	srv := newTestServer(t)
@@ -643,7 +643,7 @@ func TestServer_SSE_ClientDisconnect(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	// Cancel context → client disconnects
+	// Cancel context -> client disconnects
 	cancel()
 	time.Sleep(100 * time.Millisecond)
 
@@ -657,7 +657,7 @@ func TestServer_SSE_ClientDisconnect(t *testing.T) {
 	}
 }
 
-// ── Tests: Bubble management ─────────────────────────────────────────────────
+// -- Tests: Bubble management -------------------------------------------------
 
 func TestServer_AddBubble_NewMessage(t *testing.T) {
 	srv := newTestServer(t)
@@ -687,7 +687,7 @@ func TestServer_AddBubble_MergeStreaming(t *testing.T) {
 
 	// First bubble
 	srv.addBubble("test-conv", BubbleMessage{Type: "llm", Content: "hel"})
-	// Second bubble of same type → should merge
+	// Second bubble of same type -> should merge
 	srv.addBubble("test-conv", BubbleMessage{Type: "llm", Content: "lo"})
 
 	if len(conv.Messages) != 1 {
@@ -739,7 +739,7 @@ func TestServer_AddBubble_ConvNotFound(t *testing.T) {
 	srv.addBubble("nonexistent", BubbleMessage{Type: "llm", Content: "hello"})
 }
 
-// ── Tests: Side channel ──────────────────────────────────────────────────────
+// -- Tests: Side channel ------------------------------------------------------
 
 func TestServer_SideChannel_MethodNotAllowed(t *testing.T) {
 	srv := newTestServer(t)
@@ -770,7 +770,7 @@ func TestServer_SideChannel_NoActiveConversation(t *testing.T) {
 	}
 }
 
-// ── Tests: Ask answer endpoint ───────────────────────────────────────────────
+// -- Tests: Ask answer endpoint -----------------------------------------------
 
 func TestServer_AskAnswer_MethodNotAllowed(t *testing.T) {
 	srv := newTestServer(t)
@@ -818,7 +818,7 @@ func TestServer_AskAnswer_Resolve(t *testing.T) {
 	}
 }
 
-// ── Tests: Side channel with ask flow (end-to-end) ──────────────────────────
+// -- Tests: Side channel with ask flow (end-to-end) --------------------------
 
 func TestServer_SideChannel_AskOpenEnded(t *testing.T) {
 	srv := newTestServer(t)
@@ -1089,7 +1089,7 @@ func TestServer_SideChannel_AskExec_Denied(t *testing.T) {
 	}
 }
 
-// ── Tests: JSONL persistence ─────────────────────────────────────────────────
+// -- Tests: JSONL persistence -------------------------------------------------
 
 func TestServer_JSONL_AppendAndLoad(t *testing.T) {
 	srv := newTestServer(t)
@@ -1200,7 +1200,7 @@ func TestServer_JSONL_MergeOnLoad(t *testing.T) {
 	}
 }
 
-// ── Tests: Conversation ordering ─────────────────────────────────────────────
+// -- Tests: Conversation ordering ---------------------------------------------
 
 func TestServer_Conversations_Order_NewestFirst(t *testing.T) {
 	srv := newTestServer(t)
@@ -1231,7 +1231,7 @@ func TestServer_Conversations_Order_NewestFirst(t *testing.T) {
 	}
 }
 
-// ── Tests: SSE broadcast ─────────────────────────────────────────────────────
+// -- Tests: SSE broadcast -----------------------------------------------------
 
 func TestServer_SSE_BroadcastToMultipleClients(t *testing.T) {
 	srv := newTestServer(t)
@@ -1282,7 +1282,7 @@ func TestServer_SSE_BroadcastDuringConversationCreate(t *testing.T) {
 	srv.sseClients[ch] = struct{}{}
 	srv.sseMu.Unlock()
 
-	// Create a conversation → should broadcast
+	// Create a conversation -> should broadcast
 	var conv Conversation
 	postJSON(t, ts.URL+"/api/conversations", map[string]string{
 		"agent": "test",
@@ -1299,7 +1299,7 @@ func TestServer_SSE_BroadcastDuringConversationCreate(t *testing.T) {
 	}
 }
 
-// ── Tests: Edge cases ────────────────────────────────────────────────────────
+// -- Tests: Edge cases --------------------------------------------------------
 
 func TestServer_Conversation_DeleteRemovesFromOrder(t *testing.T) {
 	srv := newTestServer(t)
@@ -1323,7 +1323,7 @@ func TestServer_Conversation_DeleteRemovesFromOrder(t *testing.T) {
 	}
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// -- Helpers ------------------------------------------------------------------
 
 func mustMarshalRaw(v any) json.RawMessage {
 	b, _ := json.Marshal(v)
@@ -1341,7 +1341,7 @@ func wgWait(t *testing.T, wg *sync.WaitGroup) {
 	}
 }
 
-// ── Tests: setContextConn prevents nil dereference ──────────────────────────
+// -- Tests: setContextConn prevents nil dereference --------------------------
 
 // mockClientHandler is a minimal acp.Client for tests.
 type mockClientHandler struct{}
@@ -1407,7 +1407,7 @@ func TestSetContextConn_PreventsNilDeref(t *testing.T) {
 			t.Logf("NewSession returned error (expected): %v", err)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("NewSession timed out — likely blocked on writeQueue")
+		t.Fatal("NewSession timed out -- likely blocked on writeQueue")
 	}
 }
 
@@ -1422,7 +1422,7 @@ func TestSetContextConn_PanicWithoutFix(t *testing.T) {
 	handler := &mockClientHandler{}
 	conn := acp.NewClientSideConnection(handler, pw, pr)
 
-	// Do NOT call setContextConn — test that we get a panic
+	// Do NOT call setContextConn -- test that we get a panic
 	panicked := make(chan bool, 1)
 	go func() {
 		defer func() {
@@ -1440,19 +1440,19 @@ func TestSetContextConn_PanicWithoutFix(t *testing.T) {
 	select {
 	case didPanic := <-panicked:
 		if !didPanic {
-			t.Log("No panic detected — library may have been fixed to handle nil ctx")
+			t.Log("No panic detected -- library may have been fixed to handle nil ctx")
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Timed out waiting for NewSession")
 	}
 }
 
-// ── Integration: full user flow with mock ACP subprocess ────────────────────
+// -- Integration: full user flow with mock ACP subprocess --------------------
 
 // TestServer_NewConversation_SendMessage simulates the exact user flow:
-// 1. Open webapp → GET /
-// 2. Click new conversation → POST /api/conversations
-// 3. Leave defaults, send a text message → POST /api/conversations/{id}/init
+// 1. Open webapp -> GET /
+// 2. Click new conversation -> POST /api/conversations
+// 3. Leave defaults, send a text message -> POST /api/conversations/{id}/init
 // 4. Verify no panic and proper error (since no real LLM backend)
 func TestServer_NewConversation_SendMessage(t *testing.T) {
 	srv := newTestServerWithConfigs(t)
@@ -1477,7 +1477,7 @@ func TestServer_NewConversation_SendMessage(t *testing.T) {
 	t.Logf("Created conversation: %s", conv.ID)
 
 	// Step 3: Init with a text message (simulates user typing and sending)
-	// This should NOT panic — it should return an error about ACP not being available.
+	// This should NOT panic -- it should return an error about ACP not being available.
 	initResp, err := http.Post(
 		base+"/api/conversations/"+conv.ID+"/init",
 		"application/json",

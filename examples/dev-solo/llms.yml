@@ -1,4 +1,4 @@
-# LLM endpoints — point to your OpenAI-compatible server
+# LLM endpoints - point to your OpenAI-compatible server
 llms:
   - name: local
     api_base: http://localhost:8080/v1

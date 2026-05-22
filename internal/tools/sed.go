@@ -125,7 +125,7 @@ func SedHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResu
 		}
 	}
 
-	// ≤ 30 occurrences: execute immediately, no confirmation needed
+	// <= 30 occurrences: execute immediately, no confirmation needed
 	appliedFiles := 0
 	appliedLines := 0
 	var out []string

@@ -15,7 +15,7 @@ A single-agent setup where the developer agent can invoke itself as a sub-agent.
    cp llms.yml mcps.yml agents.yml /path/to/project/.llmdevkit/
    ```
 
-3. Edit `llms.yml` — point `api_base` to your OpenAI-compatible LLM server.
+3. Edit `llms.yml` -- point `api_base` to your OpenAI-compatible LLM server.
 
 4. (Optional) Configure `llmdevkit mcp` tools in the project root:
    ```
@@ -40,7 +40,7 @@ A single-agent setup where the developer agent can invoke itself as a sub-agent.
 ## How it works
 
 - **`devkit`** tool source: spawns an in-process `llmdevkit mcp` instance providing file operations, task management, command execution, search, etc.
-- **`agents`** tool source: exposes `agents_available` and `agent_invoke`. The dev agent can call `agent_invoke` with a prompt — this launches a fresh dev agent instance with its own context, enabling task delegation without polluting the main conversation.
+- **`agents`** tool source: exposes `agents_available` and `agent_invoke`. The dev agent can call `agent_invoke` with a prompt -- this launches a fresh dev agent instance with its own context, enabling task delegation without polluting the main conversation.
 - **`ask`** tool source: enable interactivity (human in the loop)
 
 

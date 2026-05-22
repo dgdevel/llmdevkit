@@ -45,7 +45,7 @@ type llmdevkitAgent struct {
 
 	client acp.Client // set after connection init
 
-	// Cached devkit MCP client — spawned once, reused across prompts.
+	// Cached devkit MCP client -- spawned once, reused across prompts.
 	devkitMu       sync.Mutex
 	devkitOnce     bool
 	devkitTools    []devkitToolEntry
@@ -253,7 +253,7 @@ func (a *llmdevkitAgent) Prompt(ctx context.Context, params *acp.PromptRequest) 
 	}
 	messages = append(messages, runner.ChatMessage{Role: "user", Content: promptText})
 	
-	// Map LLM tool-call IDs → ACP ToolCallIDs so start/complete/fail
+	// Map LLM tool-call IDs -> ACP ToolCallIDs so start/complete/fail
 	// use the same ID for each tool call.
 	var tcIDMu sync.Mutex
 	tcIDMap := make(map[string]acp.ToolCallID)

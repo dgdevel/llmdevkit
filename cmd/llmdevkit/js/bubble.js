@@ -1,7 +1,7 @@
 import { esc, formatTime, formatTokenCount } from './utils.js';
 import { S } from './state.js';
 
-// Lazy content store: bubble ID → HTML string
+// Lazy content store: bubble ID -> HTML string
 const lazyContent = new Map();
 
 export { lazyContent };
@@ -12,7 +12,7 @@ export function bubbleHTML(cls, label, content, raw, collapsed, brief, timestamp
   let tsHtml = '';
   if (timestamp) {
     tsHtml = `<small class="text-body-secondary ms-auto">${formatTime(timestamp)}`;
-    if (tokenCount && tokenCount > 0) tsHtml += ` <span class="text-info">• ${esc(formatTokenCount(tokenCount))} tok</span>`;
+    if (tokenCount && tokenCount > 0) tsHtml += ` <span class="text-info">\u2022 ${esc(formatTokenCount(tokenCount))} tok</span>`;
     tsHtml += '</small>';
   } else if (tokenCount && tokenCount > 0) {
     tsHtml = `<small class="text-body-secondary ms-auto"><span class="text-info">${esc(formatTokenCount(tokenCount))} tok</span></small>`;

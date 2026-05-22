@@ -10,7 +10,7 @@ var version = "dev"
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "llmdevkit v%s\n\nUsage: llmdevkit <command> [args...]\n\nCommands:\n  config   Manage global and local configuration files\n  setup    Download and configure llama.cpp for embedding/reranking\n  indexer  Build and query the code index\n  mcp      MCP server — file tools, task management, command runner, code search, memory\n  acp      ACP server — agent harness with LLM orchestration, tool routing, and sub-agent invocation\n  server   Web UI server — chat interface for agents\n", version)
+		fmt.Fprintf(os.Stderr, "llmdevkit v%s\n\nUsage: llmdevkit <command> [args...]\n\nCommands:\n  config   Manage global and local configuration files\n  setup    Download and configure llama.cpp for embedding/reranking\n  indexer  Build and query the code index\n  mcp      MCP server - file tools, task management, command runner, code search, memory\n  acp      ACP server - agent harness with LLM orchestration, tool routing, and sub-agent invocation\n  server   Web UI server - chat interface for agents\n", version)
 		os.Exit(1)
 	}
 

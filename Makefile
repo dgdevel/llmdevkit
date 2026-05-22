@@ -4,6 +4,7 @@ LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 .DEFAULT_GOAL := compile
 
 compile:
+	scripts/check-non-ascii.sh
 	CGO_ENABLED=1 go build $(LDFLAGS) -o llmdevkit ./cmd/llmdevkit/
 
 dist: compile
@@ -34,3 +35,4 @@ test:
 	go test ./... || (go test -v ./... 2>&1 | grep --line-buffered -E "FAIL|--- FAIL"; exit 1)
 
 .PHONY: compile dist tag release clean test
+

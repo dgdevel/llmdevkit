@@ -1,4 +1,4 @@
-// notifications.js — browser notification bell + service worker management
+// notifications.js -- browser notification bell + service worker management
 import { S } from './state.js';
 
 let swReg = null;
@@ -58,7 +58,7 @@ export async function toggleNotifications() {
   btn.classList.add('btn-outline-success');
   btn.title = 'Notifications enabled (click to disable)';
 
-  // Tell SW to start polling — may need to wait for activation
+  // Tell SW to start polling -- may need to wait for activation
   const sw = swReg.active || swReg.waiting || swReg.installing;
   if (sw) {
     sw.postMessage({ type: 'start' });

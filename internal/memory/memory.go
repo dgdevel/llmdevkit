@@ -65,7 +65,7 @@ func (m *Memory) Put(ctx context.Context, fact string) error {
 	id := factID(fact)
 	now := time.Now().UTC().Format(time.RFC3339)
 
-	// Check if exists — update created_at only on first insert
+	// Check if exists - update created_at only on first insert
 	// chromem AddDocuments with same ID overwrites
 	doc := chromem.Document{
 		ID:      id,

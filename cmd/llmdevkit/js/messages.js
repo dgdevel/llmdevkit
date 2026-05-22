@@ -45,7 +45,7 @@ export function renderMessages(conv, full) {
         args = Object.entries(props).map(([name, schema]) => {
           const req = required.includes(name) ? ' *' : '';
           const typ = schema.type || 'any';
-          const d = schema.description ? ` — ${esc(schema.description)}` : '';
+          const d = schema.description ? ` -- ${esc(schema.description)}` : '';
           return `<span class="badge font-monospace text-bg-secondary me-1">${esc(name)}:${typ}${req}${d}</span>`;
         }).join('');
       }
@@ -84,9 +84,9 @@ export function updateLastLLMTokenCount(tokenCount) {
   if (!tsEl) return;
   const span = tsEl.querySelector('.text-info');
   if (span) {
-    span.textContent = `• ${formatTokenCount(tokenCount)} tok`;
+    span.textContent = `\u2022 ${formatTokenCount(tokenCount)} tok`;
   } else {
-    tsEl.insertAdjacentHTML('beforeend', ` <span class="text-info">• ${esc(formatTokenCount(tokenCount))} tok</span>`);
+    tsEl.insertAdjacentHTML('beforeend', ` <span class="text-info">\u2022 ${esc(formatTokenCount(tokenCount))} tok</span>`);
   }
 }
 
@@ -139,7 +139,7 @@ function renderToolRequest(m) {
     }
   }
   const brief = briefToolReq(m);
-  return bubbleHTML('tool-req', `⚙ ${title}`, argsHTML, true, false, brief, m.timestamp);
+  return bubbleHTML('tool-req', `\u2699 ${title}`, argsHTML, true, false, brief, m.timestamp);
 }
 
 function renderToolResponse(m) {
@@ -148,7 +148,7 @@ function renderToolResponse(m) {
   else if (S.toolCallIdToName[name]) name = S.toolCallIdToName[name];
   const brief = briefText(m.content);
   const content = `<pre>${esc(m.content)}</pre>`;
-  return bubbleHTML('tool-resp', `📋 ${esc(name)}`, content, true, true, brief, m.timestamp);
+  return bubbleHTML('tool-resp', `\uD83D\uDCCB ${esc(name)}`, content, true, true, brief, m.timestamp);
 }
 
 function briefToolReq(m) {
@@ -166,7 +166,7 @@ function briefToolReq(m) {
       args = Object.keys(obj.input_schema.properties).map(k => esc(k)).join(', ');
     } else if (!args && m.content) {
       const fallback = m.content.split('\n')[0];
-      return esc(fallback.length > 100 ? fallback.slice(0,100)+'…' : fallback);
+      return esc(fallback.length > 100 ? fallback.slice(0,100)+'...' : fallback);
     }
     return esc(name) + (args ? ' | ' + args : '');
   } catch(e) {

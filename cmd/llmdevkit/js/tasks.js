@@ -47,15 +47,15 @@ export function renderTaskList() {
       renderTaskList();
     };
   }
-  const icons = {pending: '○', in_progress: '◐', completed: '●', failed: '✕'};
+  const icons = {pending: '\u25CB', in_progress: '\u25D0', completed: '\u25CF', failed: '\u2715'};
   const iconCls = {pending: 'text-body-secondary', in_progress: 'text-warning', completed: 'text-success', failed: 'text-danger'};
   el.innerHTML = S.taskEntries.map((t, idx) => {
-    const icon = icons[t.status] || '○';
+    const icon = icons[t.status] || '\u25CB';
     return `<div class="task-item ${t.status} d-flex align-items-baseline gap-1 small text-body-secondary" style="padding:2px 0">
       <span class="task-icon flex-shrink-0 ${iconCls[t.status] || ''}" style="width:14px;text-align:center">${icon}</span>
       <span class="task-id flex-shrink-0 text-body-secondary" style="font-size:.7rem;opacity:.5">#${esc(t.id)}</span>
       <span class="task-text flex-grow-1 overflow-hidden text-truncate" title="${esc(t.content)}">${esc(t.content)}</span>
-      <span class="task-del" style="cursor:pointer;display:none;font-size:.75rem" data-idx="${idx}">✕</span>
+      <span class="task-del" style="cursor:pointer;display:none;font-size:.75rem" data-idx="${idx}">\u2715</span>
     </div>`;
   }).join('');
   el.querySelectorAll('.task-item').forEach(item => {

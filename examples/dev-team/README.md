@@ -24,7 +24,7 @@ A multi-agent setup where a manager agent orchestrates a team of specialized age
    cp llms.yml mcps.yml agents.yml /path/to/project/.llmdevkit/
    ```
 
-3. Edit `llms.yml` — point `api_base` to your OpenAI-compatible LLM server.
+3. Edit `llms.yml` -- point `api_base` to your OpenAI-compatible LLM server.
 
 4. (Optional) Configure `llmdevkit mcp` tools in the project root:
    ```
@@ -49,8 +49,8 @@ A multi-agent setup where a manager agent orchestrates a team of specialized age
 ## How it works
 
 - **Manager** receives user requests, breaks them into tasks, and delegates via `agent_invoke` to specialist agents.
-- **Developer** handles code changes — file creation, editing, refactoring. Has full `devkit` tools.
+- **Developer** handles code changes -- file creation, editing, refactoring. Has full `devkit` tools.
 - **QA** reviews changes, runs tests, checks for regressions. Has `devkit` read/search tools + `ask`.
-- **Researcher** investigates external info — web search, documentation, repo wiki. Has `devkit` tools + `agents` tool for deeper lookups.
+- **Researcher** investigates external info -- web search, documentation, repo wiki. Has `devkit` tools + `agents` tool for deeper lookups.
 - **`agents`** tool source: exposes `agents_available` and `agent_invoke`. Manager uses this to dispatch work to specialists.
 - **`ask`** tool source: enables human-in-the-loop interaction for approvals or clarifications.

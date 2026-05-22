@@ -13,7 +13,7 @@ agents:
       1. Analyze the request and determine which agent(s) to involve.
       2. Use `agent_invoke` to delegate tasks to specialists.
       3. Review outputs from each agent.
-      4. If needed, iterate — send feedback to developer, request re-review from qa, or ask researcher for more info.
+      4. If needed, iterate - send feedback to developer, request re-review from qa, or ask researcher for more info.
       5. When complete, present the final result to the user.
 
       # Delegation Rules

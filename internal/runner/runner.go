@@ -294,7 +294,7 @@ func (r *Runner) RunPrompt(ctx context.Context, messages []ChatMessage, userProm
 			r.onText(assistantMsg.Content)
 		}
 
-		// No tool calls → done
+		// No tool calls -> done
 		if len(assistantMsg.ToolCalls) == 0 || choice.FinishReason == "stop" {
 			return messages, assistantMsg.Content, nil
 		}

@@ -24,7 +24,7 @@ func TestSedReplace(t *testing.T) {
 		},
 	}
 
-	// First call: executes immediately (≤ 30 occurrences)
+	// First call: executes immediately (<= 30 occurrences)
 	result, err := SedHandler(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestSedGlobstar(t *testing.T) {
 		},
 	}
 
-	// First call: executes immediately (≤ 30 occurrences)
+	// First call: executes immediately (<= 30 occurrences)
 	result, err := SedHandler(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
@@ -169,7 +169,7 @@ func TestSedLargeConfirmation(t *testing.T) {
 func TestSedLargeFileList(t *testing.T) {
 	setupTestRoot(t)
 
-	// Create 5 files with multiple matches each to exceed 30 occurrences but ≤ 10 files
+	// Create 5 files with multiple matches each to exceed 30 occurrences but <= 10 files
 	for i := 0; i < 5; i++ {
 		filename := filepath.Join(RootDir, "multi", "file"+string(rune('A'+i))+".txt")
 		os.MkdirAll(filepath.Dir(filename), 0755)
@@ -188,7 +188,7 @@ func TestSedLargeFileList(t *testing.T) {
 		},
 	}
 
-	// First call: should show file list (> 30 occurrences, ≤ 10 files)
+	// First call: should show file list (> 30 occurrences, <= 10 files)
 	result, err := SedHandler(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
@@ -227,7 +227,7 @@ func TestSedLargeFileCount(t *testing.T) {
 		},
 	}
 
-	// Should execute immediately (15 occurrences ≤ 30)
+	// Should execute immediately (15 occurrences <= 30)
 	result, err := SedHandler(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)

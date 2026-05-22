@@ -18,7 +18,7 @@ export function formatTime(ts) {
 export function briefText(s) {
   if (!s) return '';
   const line = String(s).split('\n')[0].replace(/\r/g, '');
-  return esc(line.length > 100 ? line.slice(0, 100) + '…' : line);
+  return esc(line.length > 100 ? line.slice(0, 100) + '...' : line);
 }
 
 export function formatFileSize(bytes) {
