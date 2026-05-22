@@ -10,7 +10,7 @@ export function updateLLMSelect(conv) {
   const sel = document.getElementById('llmSelect');
   sel.innerHTML = '';
   S.llms.forEach(l => {
-    sel.innerHTML += `<option value="${l.name}"${conv?.llm === l.name ? ' selected' : ''}>${l.display_name}</option>`;
+    sel.innerHTML += `<option value="${l.name}"${conv?.llm === l.name ? ' selected' : ''}>${l.name}</option>`;
   });
   sel.value = conv?.llm || S.llms[0]?.name || '';
 }
