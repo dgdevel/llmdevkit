@@ -680,28 +680,6 @@ func (a *llmdevkitAgent) registerAskTools(registry *runner.ToolRegistry) {
 			})
 		},
 	})
-
-	registry.Add(&runner.ToolDef{
-		Name:        "rename_conversation",
-		Description: "Rename the current conversation with a new title",
-		InputSchema: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"title": map[string]any{"type": "string", "description": "New title for the conversation"},
-			},
-			"required": []string{"title"},
-		},
-		Call: func(ctx context.Context, args map[string]any) (string, error) {
-			title, _ := args["title"].(string)
-			if sideURL == "" {
-				return "No side-channel available", nil
-			}
-			return sideChannelCall(ctx, sideURL, map[string]any{
-				"type":  "rename_conversation",
-				"title": title,
-			})
-		},
-	})
 }
 
 // sideChannelCall POSTs to the llmdevkit server side-channel and waits for user response.

@@ -19,7 +19,7 @@ File naming: `<conversation_id>.jsonl`
 
 ### 1. `conversation_created`
 
-Creates or updates conversation metadata. Written on conversation creation and when title changes (e.g., via `rename_conversation`).
+Creates or updates conversation metadata. Written on conversation creation and when title changes (e.g., via Web UI rename).
 
 **Payload:** `Conversation` object
 

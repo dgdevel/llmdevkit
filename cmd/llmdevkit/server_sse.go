@@ -114,23 +114,6 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handle rename_conversation (fire-and-forget from LLM tool)
-	if askType == "rename_conversation" {
-		var title string
-		json.Unmarshal(payload["title"], &title)
-		if title != "" {
-			s.mu.Lock()
-			if conv, ok := s.convs[convID]; ok {
-				conv.Title = title
-			}
-			s.mu.Unlock()
-			s.appendJSONL(convID, "conversation_created", s.convs[convID])
-			s.broadcastSSE("", "conversation_updated", s.convs[convID])
-		}
-		w.WriteHeader(204)
-		return
-	}
-
 	askID := fmt.Sprintf("ask_%d", time.Now().UnixNano())
 
 	// Inject ask_id into the payload so the SSE broadcast carries it.

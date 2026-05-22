@@ -130,7 +130,6 @@ func (s *Server) resolveToolDefs(ctx context.Context, agentName string) ([]ToolD
 				ToolDefInfo{Name: "ask_open_ended", Description: "Ask user an open-ended question", Parameters: map[string]any{"type": "object", "properties": map[string]any{"question": map[string]any{"type": "string", "description": "The question text"}}}},
 				ToolDefInfo{Name: "ask_exec", Description: "Ask user to execute a command", Parameters: map[string]any{"type": "object", "properties": map[string]any{"cmdline": map[string]any{"type": "string", "description": "Command line"}, "timeout": map[string]any{"type": "integer", "description": "Timeout in seconds"}}}},
 				ToolDefInfo{Name: "ask_multiple_choice", Description: "Ask user a multiple choice question"},
-				ToolDefInfo{Name: "rename_conversation", Description: "Rename the current conversation", Parameters: map[string]any{"type": "object", "properties": map[string]any{"title": map[string]any{"type": "string", "description": "New title for the conversation"}}, "required": []string{"title"}}},
 			)
 		default:
 			if s.mcpCfg != nil {

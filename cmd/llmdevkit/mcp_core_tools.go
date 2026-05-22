@@ -105,6 +105,12 @@ func addCoreTools(s *server.MCPServer) {
 		),
 	), tools.RmHandler)
 
+	s.AddTool(mcp.NewTool("utf8_to_ascii",
+		mcp.WithString("text",
+			mcp.Required(),
+		),
+	), tools.Utf8ToAsciiHandler)
+
 	s.AddTool(mcp.NewTool("stat",
 		mcp.WithDescription("Infos on files and directories"),
 		mcp.WithString("path",
