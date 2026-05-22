@@ -4,9 +4,12 @@ LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 .DEFAULT_GOAL := compile
 
 compile:
+	@echo "Source code check..."
 	scripts/check-non-ascii.sh
+	@echo "Source code formatting..."
 	go fmt ./...
 	bun run js-beautify cmd/llmdevkit/js/*.js
+	@echo "Binary compilation..."
 	CGO_ENABLED=1 go build $(LDFLAGS) -o llmdevkit ./cmd/llmdevkit/
 
 dist: compile
