@@ -5,7 +5,7 @@ Provides an MCP server with Unix-inspired file tools, a code indexer (optional),
 While extensible as a general toolkit, its core use case is a lean coding agent (see [examples/dev-solo](https://github.com/dgdevel/llmdevkit/tree/main/examples/dev-solo)) optimized for minimal token usage.  
 Run and tested on Linux it should work on any \*nix.
 
-<a href="https://github.com/dgdevel/llmdevkit/releases/tag/v1.2.0" target="_blank">A screenshot for v1.2.0 here</a>
+<a href="https://github.com/dgdevel/llmdevkit/releases/tag/v1.3.0" target="_blank">A screenshot for v1.3.0 here</a>
 
 [Feature list here](https://github.com/dgdevel/llmdevkit#llmdevkit-server)
 
