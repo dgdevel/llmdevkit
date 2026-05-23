@@ -47,13 +47,16 @@ export function renderMessages(conv, full) {
         return;
     }
 
-    // Full rebuild
+    // Full rebuild using DocumentFragment to minimize reflows
     el.innerHTML = '';
     clearLazyContent();
     S._bubbleId = 0;
+    const fragment = document.createDocumentFragment();
+    const tempDiv = document.createElement('div');
+
     if (conv.system_prompt) {
         const spBrief = briefText(conv.system_prompt);
-        el.innerHTML += bubbleHTML('system', 'System Prompt', md(conv.system_prompt), true, true, spBrief);
+        tempDiv.innerHTML += bubbleHTML('system', 'System Prompt', md(conv.system_prompt), true, true, spBrief);
     }
     const defs = S.toolDefsCache[conv.agent] || [];
     if (defs.length > 0) {
@@ -76,14 +79,22 @@ export function renderMessages(conv, full) {
         <div class="mt-1">${args}</div>
       </div>`;
         }).join('');
-        el.innerHTML += bubbleHTML('tools', `Available Tools (${defs.length})`, toolsHTML, true, true, `${defs.length} tools`);
+        tempDiv.innerHTML += bubbleHTML('tools', `Available Tools (${defs.length})`, toolsHTML, true, true, `${defs.length} tools`);
     } else if (conv.tools && conv.tools.length > 0) {
         const toolsHTML = conv.tools.map(t => `<span class="badge text-bg-secondary me-1">${esc(t)}</span>`).join(' ');
-        el.innerHTML += bubbleHTML('tools', 'Available Tools', toolsHTML, true, true, conv.tools.join(', '));
+        tempDiv.innerHTML += bubbleHTML('tools', 'Available Tools', toolsHTML, true, true, conv.tools.join(', '));
     }
+
     msgs.forEach(m => {
-        el.innerHTML += renderBubble(m);
+        tempDiv.innerHTML += renderBubble(m);
     });
+
+    // Convert tempDiv content to fragment nodes
+    while (tempDiv.firstChild) {
+        fragment.appendChild(tempDiv.firstChild);
+    }
+    el.appendChild(fragment);
+
     conv._renderedMsgCount = msgs.length;
     _lastRenderedConvId = conv.id;
     scrollToBottom();
