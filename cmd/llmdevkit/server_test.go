@@ -954,9 +954,12 @@ func TestServer_SideChannel_AskExec_Approved(t *testing.T) {
 
 	wgWait(t, &wg)
 
-	expected := "User modified the command, running: echo modified\nmodified\n\nExit status: 0\nDuration: "
+	expected := "Exit status: 0\nDuration: "
 	if !strings.HasPrefix(sideResp, expected) {
 		t.Errorf("expected prefix %q, got %q", expected, sideResp)
+	}
+	if !strings.Contains(sideResp, "file_read") || !strings.Contains(sideResp, "run-") {
+		t.Errorf("expected file_read message with run dir, got %q", sideResp)
 	}
 }
 
@@ -1020,8 +1023,8 @@ func TestServer_SideChannel_AskExec_ApprovedUnmodified(t *testing.T) {
 	if strings.Contains(sideResp, "User modified") {
 		t.Errorf("should not contain 'User modified' when cmdline unchanged, got %q", sideResp)
 	}
-	if !strings.Contains(sideResp, "hello") {
-		t.Errorf("expected command output to contain 'hello', got %q", sideResp)
+	if !strings.Contains(sideResp, "file_read") || !strings.Contains(sideResp, "run-") {
+		t.Errorf("expected file_read message with run dir, got %q", sideResp)
 	}
 	if !strings.Contains(sideResp, "Exit status: 0") {
 		t.Errorf("expected 'Exit status: 0', got %q", sideResp)

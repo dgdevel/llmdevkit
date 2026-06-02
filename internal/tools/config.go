@@ -8,6 +8,9 @@ import (
 )
 
 func IsConfigPath(abs string) bool {
+	if IsExecsPath(abs) {
+		return false
+	}
 	dir := cfg.DirPath(RootDir)
 	if abs == dir || strings.HasPrefix(abs, dir+string(filepath.Separator)) {
 		return true

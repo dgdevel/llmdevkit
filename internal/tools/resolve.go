@@ -12,6 +12,9 @@ var RootDir string
 var IgnoreGlobs []string
 
 func IsIgnored(abs string) bool {
+	if IsExecsPath(abs) {
+		return false
+	}
 	if len(IgnoreGlobs) == 0 {
 		return false
 	}

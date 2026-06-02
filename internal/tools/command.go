@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
@@ -165,10 +164,19 @@ func RunCommandHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 	parts := strings.Fields(cmdline)
 	cmdParts := append(parts, sanitized...)
 
+	runDir, runNum, err := NextExecRunDir()
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("exec output setup: %v", err)), nil
+	}
+	execFiles, err := CreateExecOutputFiles(runDir, runNum)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("exec output files: %v", err)), nil
+	}
+	defer execFiles.Close()
+
 	cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
-	var output bytes.Buffer
-	cmd.Stdout = &output
-	cmd.Stderr = &output
+	cmd.Stdout = execFiles.StdoutWriter
+	cmd.Stderr = execFiles.StderrWriter
 
 	start := time.Now()
 	if err := cmd.Start(); err != nil {
@@ -194,9 +202,8 @@ func RunCommandHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 		}
 	}
 
-	out := output.String()
 	if timedOut {
-		out = "Command timed out. Partial output.\n" + out
+		fmt.Fprintln(execFiles.Merged, "Command timed out. Partial output.")
 	}
 
 	exitCode := cmd.ProcessState.ExitCode()
@@ -204,5 +211,10 @@ func RunCommandHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 	if exitCode >= 0 {
 		header = fmt.Sprintf("Exit status: %d\nDuration: %.3fs\n", exitCode, time.Since(start).Seconds())
 	}
-	return mcp.NewToolResultText(header + out), nil
+
+	// Write header to merged output
+	fmt.Fprint(execFiles.Merged, header)
+	execFiles.Close()
+
+	return mcp.NewToolResultText(header + execFiles.FileMessage()), nil
 }

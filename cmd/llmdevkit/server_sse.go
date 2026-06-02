@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -187,33 +186,55 @@ func (s *Server) handleSideChannel(w http.ResponseWriter, r *http.Request) {
 	switch askType {
 	case "ask_exec":
 		if ans.Approved {
-			// Execute the command and return output to the ACP subprocess
+			// Execute the command and write output to files
 			timeout := time.Duration(ans.Timeout) * time.Second
 			if timeout == 0 {
 				timeout = 30 * time.Second
 			}
+
+			runDir, runNum, err := tools.NextExecRunDir()
+			if err != nil {
+				w.WriteHeader(200)
+				w.Write([]byte(fmt.Sprintf("ERROR: exec output setup: %v", err)))
+				return
+			}
+			execFiles, err := tools.CreateExecOutputFiles(runDir, runNum)
+			if err != nil {
+				w.WriteHeader(200)
+				w.Write([]byte(fmt.Sprintf("ERROR: exec output files: %v", err)))
+				return
+			}
+
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 			cmd := exec.CommandContext(ctx, "sh", "-c", ans.Cmdline)
 			cmd.Dir = s.rootDir
+			cmd.Stdout = execFiles.StdoutWriter
+			cmd.Stderr = execFiles.StderrWriter
 			start := time.Now()
-			out, err := cmd.CombinedOutput()
+
+			if ans.Cmdline != originalCmdline {
+				msg := fmt.Sprintf("User modified the command, running: %s\n", ans.Cmdline)
+				fmt.Fprint(execFiles.Merged, msg)
+			}
+
+			err = cmd.Run()
 			duration := time.Since(start)
 
-			var buf bytes.Buffer
-			if ans.Cmdline != originalCmdline {
-				buf.WriteString(fmt.Sprintf("User modified the command, running: %s\n", ans.Cmdline))
-			}
-			buf.Write(out)
+			var exitStatus int
 			if exitErr, ok := err.(*exec.ExitError); ok {
-				buf.WriteString(fmt.Sprintf("\nExit status: %d", exitErr.ExitCode()))
+				exitStatus = exitErr.ExitCode()
 			} else if err != nil {
-				buf.WriteString(fmt.Sprintf("\nExit status: 1"))
+				exitStatus = 1
 			} else {
-				buf.WriteString(fmt.Sprintf("\nExit status: 0"))
+				exitStatus = 0
 			}
-			buf.WriteString(fmt.Sprintf("\nDuration: %.3fs", duration.Seconds()))
-			w.Write(buf.Bytes())
+
+			header := fmt.Sprintf("Exit status: %d\nDuration: %.3fs\n", exitStatus, duration.Seconds())
+			fmt.Fprint(execFiles.Merged, header)
+			execFiles.Close()
+
+			w.Write([]byte(header + execFiles.FileMessage()))
 		} else {
 			w.WriteHeader(200)
 			w.Write([]byte("DENIED: " + ans.DenyReason))

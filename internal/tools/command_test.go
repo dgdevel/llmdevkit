@@ -17,6 +17,7 @@ func setupCommandTest(t *testing.T, config map[string]map[string]string) {
 	t.Helper()
 	root := t.TempDir()
 	RootDir = root
+	ResetExecState()
 	if config != nil {
 		if err := cfg.Write(config, cfg.FilePath(root)); err != nil {
 			t.Fatal(err)
@@ -122,8 +123,16 @@ func TestExecCommand(t *testing.T) {
 		t.Fatalf("exec_command returned error: %s", textOf(t, result))
 	}
 	text := textOf(t, result)
-	if !strings.Contains(text, "hello world") {
-		t.Errorf("expected output to contain 'hello world', got %q", text)
+	if !strings.Contains(text, "file_read") || !strings.Contains(text, "run-") {
+		t.Errorf("expected file_read message with run dir, got %q", text)
+	}
+	// Verify output was written to file
+	stdoutData, err := os.ReadFile(filepath.Join(RootDir, ".llmdevkit", "execs", "run-1", "stdout.txt"))
+	if err != nil {
+		t.Fatalf("failed to read stdout.txt: %v", err)
+	}
+	if !strings.Contains(string(stdoutData), "hello world") {
+		t.Errorf("expected stdout.txt to contain 'hello world', got %q", string(stdoutData))
 	}
 }
 
@@ -154,8 +163,16 @@ func TestExecCommandWithArgs(t *testing.T) {
 		t.Fatalf("exec_command returned error: %s", textOf(t, result))
 	}
 	text := textOf(t, result)
-	if !strings.Contains(text, "make clean") {
-		t.Errorf("expected output to contain 'make clean', got %q", text)
+	if !strings.Contains(text, "file_read") || !strings.Contains(text, "run-") {
+		t.Errorf("expected file_read message with run dir, got %q", text)
+	}
+	// Verify output was written to file
+	stdoutData, err := os.ReadFile(filepath.Join(RootDir, ".llmdevkit", "execs", "run-1", "stdout.txt"))
+	if err != nil {
+		t.Fatalf("failed to read stdout.txt: %v", err)
+	}
+	if !strings.Contains(string(stdoutData), "make clean") {
+		t.Errorf("expected stdout.txt to contain 'make clean', got %q", string(stdoutData))
 	}
 }
 
@@ -268,8 +285,16 @@ func TestExecCommandTimeout(t *testing.T) {
 	}
 	if !result.IsError {
 		text := textOf(t, result)
-		if !strings.HasPrefix(text, "Command timed out. Partial output.\n") {
-			t.Errorf("expected timeout prefix, got: %q", text)
+		if !strings.Contains(text, "file_read") || !strings.Contains(text, "run-") {
+			t.Errorf("expected file_read message with run dir, got: %q", text)
+		}
+		// Verify merged output contains timeout message
+		mergedData, err := os.ReadFile(filepath.Join(RootDir, ".llmdevkit", "execs", "run-1", "merged-output.txt"))
+		if err != nil {
+			t.Fatalf("failed to read merged-output.txt: %v", err)
+		}
+		if !strings.Contains(string(mergedData), "Command timed out") {
+			t.Errorf("expected merged output to contain timeout message, got %q", string(mergedData))
 		}
 	}
 	if elapsed > 10*time.Second {
@@ -335,8 +360,25 @@ func TestExecCommandStderr(t *testing.T) {
 		t.Fatalf("exec_command returned error: %s", textOf(t, result))
 	}
 	text := textOf(t, result)
-	if !strings.Contains(text, "stdout_msg") || !strings.Contains(text, "stderr_msg") {
-		t.Errorf("expected merged stdout+stderr, got: %q", text)
+	if !strings.Contains(text, "file_read") || !strings.Contains(text, "run-") {
+		t.Errorf("expected file_read message with run dir, got %q", text)
+	}
+	// Verify merged output contains both stdout and stderr
+	mergedData, err := os.ReadFile(filepath.Join(RootDir, ".llmdevkit", "execs", "run-1", "merged-output.txt"))
+	if err != nil {
+		t.Fatalf("failed to read merged-output.txt: %v", err)
+	}
+	if !strings.Contains(string(mergedData), "stdout_msg") || !strings.Contains(string(mergedData), "stderr_msg") {
+		t.Errorf("expected merged output to contain stdout_msg and stderr_msg, got %q", string(mergedData))
+	}
+	// Also check separate files
+	stdoutData, _ := os.ReadFile(filepath.Join(RootDir, ".llmdevkit", "execs", "run-1", "stdout.txt"))
+	stderrData, _ := os.ReadFile(filepath.Join(RootDir, ".llmdevkit", "execs", "run-1", "stderr.txt"))
+	if !strings.Contains(string(stdoutData), "stdout_msg") {
+		t.Errorf("expected stdout.txt to contain stdout_msg, got %q", string(stdoutData))
+	}
+	if !strings.Contains(string(stderrData), "stderr_msg") {
+		t.Errorf("expected stderr.txt to contain stderr_msg, got %q", string(stderrData))
 	}
 }
 
